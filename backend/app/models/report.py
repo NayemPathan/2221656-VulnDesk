@@ -24,8 +24,9 @@ WHY WE WROTE IT THIS WAY (SRS Section 4, 5, 7 & TDD Section 4):
 
 from datetime import datetime, timezone
 
-from app.models.enums import ReportStatus
 from sqlmodel import Field, SQLModel
+
+from app.models.enums import ReportStatus
 
 
 def utc_now() -> datetime:

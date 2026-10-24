@@ -18,8 +18,9 @@ WHY WE WROTE IT THIS WAY (TDD Section 4 & SRS FR-08):
 
 from datetime import datetime, timezone
 
-from app.models.enums import UserRole
 from sqlmodel import Field, SQLModel
+
+from app.models.enums import UserRole
 
 
 def utc_now() -> datetime:

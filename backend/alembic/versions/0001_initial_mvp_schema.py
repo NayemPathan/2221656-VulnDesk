@@ -13,7 +13,7 @@ WHY WE WROTE IT THIS WAY (TDD Section 11):
   all have Foreign Keys pointing to `user.id`. Next, `report` is created because `comment` and
   `status_history` have Foreign Keys pointing to `report.id`.
 - `ondelete="CASCADE"` on `comment.report_id` and `status_history.report_id`:
-  When a Researcher deletes their own `New` report (`DELETE /api/v1/reports/{id}` for CSE 309 CRUD),
+  When a Researcher deletes their own `New` report (`DELETE /api/v1/reports/{id}` for FR-30),
   the database automatically cleans up any child rows referencing that report without raising a
   ForeignKeyViolation error!
 - Drop Order in `downgrade()`: Tables are dropped in the exact reverse order (`status_history` ->

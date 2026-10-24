@@ -2,7 +2,7 @@
 Alembic Migration Environment (backend/alembic/env.py)
 =====================================================================
 WHAT THIS FILE DOES:
-Runs whenever you execute an `alembic` command (such as `alembic upgrade head`).
+Runs whenever executed an `alembic` command (such as `alembic upgrade head`).
 It connects Alembic to our `settings.database_url` (from `.env`) and tells Alembic to compare
 the database against `SQLModel.metadata` (our SQLModel table definitions).
 

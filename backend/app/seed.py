@@ -13,8 +13,8 @@ WHY WE WROTE IT THIS WAY:
    `charlie@vulndesk.local`) to switch roles instantly during your viva demo!
 2. Why did we create 5 specific users?
    - `alice@vulndesk.local` (Researcher): Primary researcher who owns Reports #1, #2, and #3.
-   - `bob@vulndesk.local` (Researcher): Second researcher who owns Report #4 — lets you prove
-     to your tutor that Alice cannot read or edit Bob's report (returns HTTP 404 per AC-04)!
+   - `bob@vulndesk.local` (Researcher): Second researcher who owns Report #4 — lets prove
+     that Alice cannot read or edit Bob's report (returns HTTP 404 per AC-04)!
    - `mallory@vulndesk.local` (Banned Researcher): Lets you demonstrate Submission Policy Rule (iv)
      (banned researchers are blocked from submitting reports).
    - `charlie@vulndesk.local` (Analyst): Security analyst who triages all reports and writes internal notes.

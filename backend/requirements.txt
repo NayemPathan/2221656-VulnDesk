@@ -8,6 +8,7 @@
 # pydantic and pydantic-settings  -> validates incoming json data and enviroment variables
 # python-dotenv   -> reads our local .env file into environment variables automatically
 # pytest & httpx  -> runs our automated unit/API tests using FastAPI's TestClient
+
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 sqlmodel>=0.0.22
