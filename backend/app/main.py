@@ -4,7 +4,7 @@ FastAPI Application Entry Point (backend/app/main.py)
 WHAT THIS FILE DOES:
 Creates and configures the main FastAPI `app` object, attaches CORS middleware so the React
 frontend can talk to the API, configures the interactive Swagger docs at `/api/docs` (NFR-13),
-and registers all API routers (`health`, `reports`) under `/api/v1`.
+and registers all API routers (`health`, `reports`, `triage`, `comments`) under `/api/v1`.
 =====================================================================
 """
 
@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import health, reports
+from app.routers import comments, health, reports, triage
 
 
 def create_app() -> FastAPI:
@@ -38,9 +38,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount routers under /api/v1
+    # Mount all MVP routers under /api/v1
     app.include_router(health.router, prefix=settings.api_v1_prefix)
     app.include_router(reports.router, prefix=settings.api_v1_prefix)
+    app.include_router(triage.router, prefix=settings.api_v1_prefix)
+    app.include_router(comments.router, prefix=settings.api_v1_prefix)
 
     return app
 
