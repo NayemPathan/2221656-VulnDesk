@@ -1,94 +1,47 @@
-import { type FormEvent, useState } from "react"
+/**
+ * frontend/src/App.tsx
+ * --------------------
+ * Root application layout and React Router v6 route table:
+ * - `/`                   -> ReportListPage (Read List + Search/Filter)
+ * - `/reports/new`        -> ReportFormPage (Create Report)
+ * - `/reports/:reportId`  -> ReportDetailPage (Read Single + Edit + Delete)
+ */
 
-export default function App() {
-  const [name, setName] = useState("")
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setError("")
-    try {
-      const params = new URLSearchParams({ name: name || "World" })
-      const res = await fetch(`/api/hello?${params}`)
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      const data: { message: string } = await res.json()
-      setMessage(data.message)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong")
-    }
-  }
+import React from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Navbar } from "./components/Navbar";
+import { DemoUserProvider } from "./context/DemoUserContext";
+import { ReportDetailPage } from "./pages/ReportDetailPage";
+import { ReportFormPage } from "./pages/ReportFormPage";
+import { ReportListPage } from "./pages/ReportListPage";
 
+
+export const App: React.FC = () => {
   return (
-    <main>
-      <h1>Nayem Pathan</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your name"
-        />
-        <button type="submit">Say hello</button>
-      </form>
-      {message && <p>{message}</p>}
-      {error && <p className="error">{error}</p>}
-      {/* EXERCISE (part 2): uncomment <UserForm /> and the UserForm function below. */}
-      {<UserForm />}
-    </main>
-  )
-}
+    <DemoUserProvider>
+      <BrowserRouter>
+        <div className="app-shell">
+          <Navbar />
+          <main className="main-content">
+            <Routes>
+              <Route path="/" element={<ReportListPage />} />
+              <Route path="/reports/new" element={<ReportFormPage />} />
+              <Route path="/reports/:reportId" element={<ReportDetailPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+          <footer className="app-footer">
+            <span>
+              VulnDesk MVP — Student ID <strong>2221656</strong> (CSE 309 &amp;
+              CSE 451)
+            </span>
+          </footer>
+        </div>
+      </BrowserRouter>
+    </DemoUserProvider>
+  );
+};
 
-function UserForm() {
-  const [form, setForm] = useState({ id: "", name: "", email: "" })
-  const [reply, setReply] = useState("")
-  const [error, setError] = useState("")
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setError("")
-    setReply("")
-    try {
-      const res = await fetch("/api/user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, id: Number(form.id) }),
-      })
-      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      const data: { message: string } = await res.json()
-      setReply(data.message)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong")
-    }
-  }
-
-  return (
-    <section>
-      <h2>Send your details</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="number"
-          value={form.id}
-          onChange={(e) => setForm({ ...form, id: e.target.value })}
-          placeholder="ID"
-          required
-        />
-        <input
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="Name"
-          required
-        />
-        <input
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-          placeholder="Email"
-          required
-        />
-        <button type="submit">Send</button>
-      </form>
-      {reply && <p>{reply}</p>}
-      {error && <p className="error">{error}</p>}
-    </section>
-  )
-}
+export default App;
