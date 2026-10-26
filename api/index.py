@@ -15,13 +15,39 @@ WHY WE WROTE IT THIS WAY (TDD Section 1 & 12):
 """
 
 import sys
+import traceback
 from pathlib import Path
 
-# Add `<repo_root>/backend` to Python's module search path so `from app.main import app` works on Vercel
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.main import app  # ty: ignore[unresolved-import]
+try:
+    from app.main import app as backend_app  # ty: ignore[unresolved-import]
+
+    app: FastAPI = backend_app
+except Exception as startup_exc:  # noqa: BLE001 - report any backend startup failure
+    error_trace = traceback.format_exc()
+    startup_error_detail = (
+        f"Backend startup error ({startup_exc.__class__.__name__}: {startup_exc}). "
+    )
+    app = FastAPI(title="VulnDesk Startup Diagnostic")
+
+    @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    async def startup_error_handler(_request: Request, path: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": (
+                    f"{startup_error_detail}on /api/{path} "
+                    "Check DATABASE_URL in Vercel Settings -> Environment Variables."
+                ),
+                "traceback": error_trace,
+            },
+        )
+
 
 __all__ = ["app"]

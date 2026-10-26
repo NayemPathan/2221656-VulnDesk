@@ -19,29 +19,27 @@ WHY WE WROTE IT THIS WAY:
 =====================================================================
 """
 
+import logging
 from collections.abc import Generator
 
 from sqlalchemy import event
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 def _build_engine():
     """Build and return the appropriate database engine based on settings.database_url."""
-
-    # Case 1: Local SQLite database (used in pytest or quick local offline runs)
     if settings.database_url.startswith("sqlite"):
-        # `check_same_thread=False` is required by FastAPI because FastAPI can handle
-        # a single request across multiple worker threads.
         eng = create_engine(
             settings.database_url,
             connect_args={"check_same_thread": False},
             echo=False,
         )
 
-        # SQLite ignores Foreign Key constraints unless we explicitly run `PRAGMA foreign_keys=ON`
-        # on every new connection. This ensures invalid user_id or report_id values are rejected.
         @event.listens_for(eng, "connect")
         def _enable_sqlite_fk(dbapi_connection, _connection_record):
             cursor = dbapi_connection.cursor()
@@ -50,36 +48,41 @@ def _build_engine():
 
         return eng
 
-    # Case 2: Supabase PostgreSQL connection (MVP & Beta cloud database)
-    # - pool_pre_ping=True: checks if the DB connection is still alive before running a query
-    # - pool_size=5, max_overflow=0: keeps connection usage small for Vercel serverless functions
+    # Supabase PostgreSQL (:6543 pooler): disable psycopg v3 prepared statements
     return create_engine(
         settings.database_url,
+        connect_args={"prepare_threshold": None},
         pool_pre_ping=True,
-        pool_size=5,
+        pool_size=2,
         max_overflow=0,
         echo=False,
     )
 
 
-# Instantiate the global engine once when the module loads
 engine = _build_engine()
 
 
 def create_db_and_tables() -> None:
-    """
-    Create all SQLModel tables directly if they don't exist yet.
-    Note: In production we use `alembic upgrade head`, but this helper is handy
-    when running `python -m app.seed` against a fresh local SQLite database.
-    """
+    """Create all SQLModel tables directly if they don't exist yet."""
     SQLModel.metadata.create_all(engine)
 
 
+def ensure_sqlite_initialized() -> None:
+    """Auto-initialize and seed /tmp SQLite fallback if DATABASE_URL was not set on Vercel."""
+    if not settings.database_url.startswith("sqlite"):
+        return
+    try:
+        import app.models  # noqa: F401
+        from app.seed import seed_database
+
+        SQLModel.metadata.create_all(engine)
+        with Session(engine) as session:
+            seed_database(session)
+    except (ImportError, SQLAlchemyError):
+        logger.exception("Failed to initialize or seed the SQLite database")
+
+
 def get_session() -> Generator[Session, None, None]:
-    """
-    FastAPI Dependency (`Depends(get_session)`).
-    Opens a new database `Session` for the incoming HTTP request, yields it to the router/service,
-    and guarantees the session is closed cleanly in the `with` block even if an exception occurs.
-    """
+    """FastAPI Dependency that opens and closes a database session per request."""
     with Session(engine) as session:
         yield session

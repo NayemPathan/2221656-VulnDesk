@@ -8,28 +8,29 @@ and registers all API routers (`health`, `reports`, `triage`, `comments`) under 
 =====================================================================
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.database import ensure_sqlite_initialized
 from app.routers import comments, health, reports, triage
 
 
 def create_app() -> FastAPI:
     """Construct and configure the FastAPI application instance."""
+    ensure_sqlite_initialized()
+
     app = FastAPI(
         title=settings.project_name,
         version=settings.version,
         description=(
             "VulnDesk: A Vulnerability Report Intake, Triage and Access-Controlled Tracking System."
         ),
-        # SRS NFR-13 & TDD Section 5 require interactive Swagger UI at /api/docs
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
 
-    # Configure Cross-Origin Resource Sharing (CORS) so our Vite React frontend
-    # (http://localhost:5173) can send requests (including the X-Demo-User header) to FastAPI
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -38,7 +39,22 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount all MVP routers under /api/v1
+    @app.middleware("http")
+    async def catch_unhandled_exceptions_middleware(request: Request, call_next):
+        """Return a readable JSON 500 error instead of FUNCTION_INVOCATION_FAILED."""
+        try:
+            return await call_next(request)
+        except Exception as exc:  # noqa: BLE001 - this middleware intentionally converts uncaught request errors to JSON 500s.
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": (
+                        f"Server error ({exc.__class__.__name__}): {exc}. "
+                        "Verify DATABASE_URL in Vercel Settings -> Environment Variables."
+                    )
+                },
+            )
+
     app.include_router(health.router, prefix=settings.api_v1_prefix)
     app.include_router(reports.router, prefix=settings.api_v1_prefix)
     app.include_router(triage.router, prefix=settings.api_v1_prefix)
@@ -47,5 +63,4 @@ def create_app() -> FastAPI:
     return app
 
 
-# Expose `app` at module level for `uvicorn app.main:app --reload` and Vercel's `api/index.py`
 app = create_app()
