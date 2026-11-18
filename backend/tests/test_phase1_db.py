@@ -3,8 +3,8 @@ Phase 1 Automated Tests (backend/tests/test_phase1_db.py)
 =====================================================================
 WHAT THIS FILE DOES:
 Verifies our Phase 1 deliverables using `pytest` and an isolated in-memory SQLite database:
-1. `test_seed_database_is_idempotent`: Confirms all 4 tables are created, `seed_database()`
-   inserts the 5 demo users, 4 sample reports, 4 status history rows, and 3 comments, and
+1. `test_seed_database_is_idempotent`: Confirms all 4 MVP tables are created, `seed_database()`
+   inserts the 6 demo users, 4 sample reports, 4 status history rows, and 3 comments, and
    running `seed_database()` a second time does NOT duplicate any rows.
 2. `test_health_endpoint_and_openapi_docs`: Uses FastAPI's `TestClient` and dependency override
    to test `GET /api/v1/health` and `GET /api/docs` without touching your real Supabase database.
@@ -46,7 +46,7 @@ def test_seed_database_is_idempotent():
         # First run on an empty database should insert all demo records
         first_run = seed_database(session)
         assert first_run["seeded"] is True
-        assert first_run["users"] == 5
+        assert first_run["users"] == 6
         assert first_run["reports"] == 4
 
         # Second run on an already-seeded database must skip insertion (idempotency)
@@ -59,7 +59,7 @@ def test_seed_database_is_idempotent():
         histories = session.exec(select(StatusHistory)).all()
         comments = session.exec(select(Comment)).all()
 
-        assert len(users) == 5
+        assert len(users) == 6
         assert len(reports) == 4
         assert len(histories) == 4
         assert len(comments) == 3

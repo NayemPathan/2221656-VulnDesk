@@ -2,35 +2,16 @@
 Idempotent Database Seed Script (backend/app/seed.py)
 =====================================================================
 WHAT THIS FILE DOES:
-Populates the database with initial demo users (Researcher, 2nd Researcher, Banned Researcher,
-Analyst, Admin), sample vulnerability reports across different workflow states, status history
-entries, and comments (including an analyst-only internal note).
-
-WHY WE WROTE IT THIS WAY:
-1. Why do we need seeded demo users in the MVP? (SRS FR-30 & PRD F-01)
-   In the MVP release, login/registration is not built yet (that is Milestone 4 in Beta).
-   Instead, the frontend sends the `X-Demo-User` header (e.g., `alice@vulndesk.local` or
-   `charlie@vulndesk.local`) to switch roles instantly during your viva demo!
-2. Why did we create 5 specific users?
-   - `alice@vulndesk.local` (Researcher): Primary researcher who owns Reports #1, #2, and #3.
-   - `bob@vulndesk.local` (Researcher): Second researcher who owns Report #4 — lets prove
-     that Alice cannot read or edit Bob's report (returns HTTP 404 per AC-04)!
-   - `mallory@vulndesk.local` (Banned Researcher): Lets you demonstrate Submission Policy Rule (iv)
-     (banned researchers are blocked from submitting reports).
-   - `charlie@vulndesk.local` (Analyst): Security analyst who triages all reports and writes internal notes.
-   - `admin@vulndesk.local` (Admin): Administrator who can browse all reports and history.
-3. Why is the script "Idempotent"?
-   Idempotent means running `python -m app.seed` 1 time or 10 times produces the exact same database
-   state without crashing on duplicate emails. We check `session.exec(select(User)).first()` first!
-4. Why do we call `session.flush()` before `session.commit()`?
-   `session.flush()` sends the pending `INSERT INTO user` statements to the database inside the open
-   transaction so PostgreSQL/SQLite assigns `alice.id`, `bob.id`, and `charlie.id`. We need those
-   numeric IDs immediately to set `reporter_id=alice.id` on the sample reports, while still committing
-   everything atomically at the very end with `session.commit()`.
+1. On an empty database: seeds 6 users (Alice, Bob, Mallory, Charlie, Nadia,
+   and the dedicated Tutor evaluator account), 4 sample vulnerability reports,
+   status history entries, and comments.
+2. On an existing MVP database: safely backfills Argon2id `password_hash` values
+   for any seeded user missing a password and creates `tutor@vulndesk.local` if absent,
+   without duplicating any existing reports or users.
 =====================================================================
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, select
 
@@ -44,66 +25,124 @@ from app.models import (
     User,
     UserRole,
 )
+from app.security import hash_password
+
+DEFAULT_DEMO_PASSWORD = "DemoPass123!"
+TUTOR_DEFAULT_PASSWORD = "DemoPass123!"
+
+
+def _ensure_beta_passwords_and_tutor(session: Session) -> dict:
+    """Backfill password hashes on existing MVP users and ensure tutor account exists."""
+    now = datetime.now(UTC)
+    updated_count = 0
+
+    existing_users = session.exec(select(User)).all()
+    for user in existing_users:
+        if not user.password_hash:
+            pw = (
+                TUTOR_DEFAULT_PASSWORD
+                if user.email == "tutor@vulndesk.local"
+                else DEFAULT_DEMO_PASSWORD
+            )
+            user.password_hash = hash_password(pw)
+            user.updated_at = now
+            session.add(user)
+            updated_count += 1
+
+    tutor_created = False
+    tutor = session.exec(
+        select(User).where(User.email == "tutor@vulndesk.local")
+    ).first()
+    if tutor is None:
+        tutor = User(
+            name="Course Tutor (Evaluator)",
+            email="tutor@vulndesk.local",
+            role=UserRole.ADMIN.value,
+            password_hash=hash_password(TUTOR_DEFAULT_PASSWORD),
+            is_banned=False,
+        )
+        session.add(tutor)
+        tutor_created = True
+
+    if updated_count > 0 or tutor_created:
+        session.commit()
+
+    return {
+        "seeded": False,
+        "passwords_backfilled": updated_count,
+        "tutor_created": tutor_created,
+        "message": "Database already contained MVP data; Beta auth fields synced.",
+    }
 
 
 def seed_database(session: Session) -> dict:
     """
-    Populate demo users, sample reports, status history, and comments if the database is empty.
-    Returns a summary dictionary indicating whether data was seeded.
+    Populate demo users, sample reports, status history, and comments if empty,
+    or sync Beta password hashes and tutor account if MVP data already exists.
     """
-    # Idempotency check: if at least one User already exists, skip seeding so we never duplicate rows
     existing_user = session.exec(select(User)).first()
     if existing_user is not None:
-        return {"seeded": False, "message": "Database already contains seeded data."}
+        return _ensure_beta_passwords_and_tutor(session)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
+    demo_hash = hash_password(DEFAULT_DEMO_PASSWORD)
+    tutor_hash = hash_password(TUTOR_DEFAULT_PASSWORD)
 
     # -----------------------------------------------------------------
-    # STEP 1: Create 5 Demo Users covering every role and test scenario
+    # STEP 1: Create 6 Users (5 MVP personas + 1 Dedicated Tutor account)
     # -----------------------------------------------------------------
     alice = User(
         name="Alice Rahman (Researcher)",
         email="alice@vulndesk.local",
         role=UserRole.RESEARCHER.value,
+        password_hash=demo_hash,
         is_banned=False,
     )
     bob = User(
         name="Bob Karim (Researcher)",
         email="bob@vulndesk.local",
         role=UserRole.RESEARCHER.value,
+        password_hash=demo_hash,
         is_banned=False,
     )
     mallory = User(
         name="Mallory Blocked (Banned Researcher)",
         email="mallory@vulndesk.local",
         role=UserRole.RESEARCHER.value,
-        is_banned=True,  # Used to test Submission Policy Rule (iv): banned account rejection
+        password_hash=demo_hash,
+        is_banned=True,
     )
     charlie = User(
         name="Charlie Hossain (Security Analyst)",
         email="charlie@vulndesk.local",
         role=UserRole.ANALYST.value,
+        password_hash=demo_hash,
         is_banned=False,
     )
     admin = User(
         name="Nadia Islam (Admin)",
         email="admin@vulndesk.local",
         role=UserRole.ADMIN.value,
+        password_hash=demo_hash,
+        is_banned=False,
+    )
+    tutor = User(
+        name="Course Tutor (Evaluator)",
+        email="tutor@vulndesk.local",
+        role=UserRole.ADMIN.value,
+        password_hash=tutor_hash,
         is_banned=False,
     )
 
-    session.add_all([alice, bob, mallory, charlie, admin])
-    # Flush assigns primary keys (alice.id, bob.id, charlie.id) without ending the transaction yet
+    session.add_all([alice, bob, mallory, charlie, admin, tutor])
     session.flush()
-    alice_id = alice.id
-    bob_id = bob.id
-    charlie_id = charlie.id
-    assert alice_id is not None and bob_id is not None and charlie_id is not None
+    assert alice.id is not None
+    assert bob.id is not None
+    assert charlie.id is not None
 
     # -----------------------------------------------------------------
     # STEP 2: Create 4 Sample Vulnerability Reports across statuses
     # -----------------------------------------------------------------
-    # Report 1: Status = NEW (owned by Alice -> Alice CAN edit or delete this report in the Viva demo!)
     r1 = Report(
         title="Stored XSS in Customer Support Ticket Subject",
         description=(
@@ -120,12 +159,11 @@ def seed_database(session: Session) -> dict:
         proposed_severity=Severity.HIGH.value,
         final_severity=None,
         status=ReportStatus.NEW.value,
-        reporter_id=alice_id,
+        reporter_id=alice.id,
         created_at=now - timedelta(days=1),
         updated_at=now - timedelta(days=1),
     )
 
-    # Report 2: Status = CONFIRMED (owned by Alice -> Alice CANNOT edit/delete because status != NEW)
     r2 = Report(
         title="IDOR on Invoice Download Endpoint (/api/v2/invoices/{id})",
         description=(
@@ -141,14 +179,13 @@ def seed_database(session: Session) -> dict:
         proposed_severity=Severity.CRITICAL.value,
         final_severity=Severity.HIGH.value,
         status=ReportStatus.CONFIRMED.value,
-        reporter_id=alice_id,
-        first_responder_id=charlie_id,
+        reporter_id=alice.id,
+        first_responder_id=charlie.id,
         first_response_at=now - timedelta(days=2, hours=18),
         created_at=now - timedelta(days=3),
         updated_at=now - timedelta(days=2),
     )
 
-    # Report 3: Status = REJECTED (owned by Alice -> demonstrates rejection_reason visibility!)
     r3 = Report(
         title="Missing Rate Limiting on Promotional Code Redemption",
         description=(
@@ -168,14 +205,13 @@ def seed_database(session: Session) -> dict:
             "Invalid report: Promo codes in staging use a mock validator; production enforces "
             "Cloudflare WAF rate limiting of 10 requests/minute per IP."
         ),
-        reporter_id=alice_id,
-        first_responder_id=charlie_id,
+        reporter_id=alice.id,
+        first_responder_id=charlie.id,
         first_response_at=now - timedelta(days=4),
         created_at=now - timedelta(days=5),
         updated_at=now - timedelta(days=4),
     )
 
-    # Report 4: Status = UNDER_REVIEW (owned by Bob -> hidden from Alice to prove ownership isolation!)
     r4 = Report(
         title="Session Token Remains Valid After Password Reset on Mobile API",
         description=(
@@ -191,49 +227,44 @@ def seed_database(session: Session) -> dict:
         proposed_severity=Severity.HIGH.value,
         final_severity=None,
         status=ReportStatus.UNDER_REVIEW.value,
-        reporter_id=bob_id,
-        first_responder_id=charlie_id,
+        reporter_id=bob.id,
+        first_responder_id=charlie.id,
         first_response_at=now - timedelta(hours=12),
         created_at=now - timedelta(days=1, hours=6),
         updated_at=now - timedelta(hours=12),
     )
 
     session.add_all([r1, r2, r3, r4])
-    # Flush assigns r1.id, r2.id, r3.id, r4.id so we can attach StatusHistory and Comment rows
     session.flush()
-    r2_id = r2.id
-    r3_id = r3.id
-    r4_id = r4.id
-    assert r2_id is not None and r3_id is not None and r4_id is not None
+    assert r2.id is not None
+    assert r3.id is not None
+    assert r4.id is not None
 
-    # -----------------------------------------------------------------
-    # STEP 3: Create Append-Only StatusHistory rows matching transitions
-    # -----------------------------------------------------------------
     histories = [
         StatusHistory(
-            report_id=r2_id,
-            changed_by=charlie_id,
+            report_id=r2.id,
+            changed_by=charlie.id,
             from_status=ReportStatus.NEW.value,
             to_status=ReportStatus.UNDER_REVIEW.value,
             changed_at=now - timedelta(days=2, hours=18),
         ),
         StatusHistory(
-            report_id=r2_id,
-            changed_by=charlie_id,
+            report_id=r2.id,
+            changed_by=charlie.id,
             from_status=ReportStatus.UNDER_REVIEW.value,
             to_status=ReportStatus.CONFIRMED.value,
             changed_at=now - timedelta(days=2),
         ),
         StatusHistory(
-            report_id=r3_id,
-            changed_by=charlie_id,
+            report_id=r3.id,
+            changed_by=charlie.id,
             from_status=ReportStatus.NEW.value,
             to_status=ReportStatus.REJECTED.value,
             changed_at=now - timedelta(days=4),
         ),
         StatusHistory(
-            report_id=r4_id,
-            changed_by=charlie_id,
+            report_id=r4.id,
+            changed_by=charlie.id,
             from_status=ReportStatus.NEW.value,
             to_status=ReportStatus.UNDER_REVIEW.value,
             changed_at=now - timedelta(hours=12),
@@ -241,40 +272,35 @@ def seed_database(session: Session) -> dict:
     ]
     session.add_all(histories)
 
-    # -----------------------------------------------------------------
-    # STEP 4: Create Public Comments & an Analyst-Only Internal Note
-    # -----------------------------------------------------------------
     comments = [
         Comment(
-            report_id=r2_id,
-            author_id=charlie_id,
+            report_id=r2.id,
+            author_id=charlie.id,
             body="Thank you Alice. We reproduced the IDOR on staging and confirmed High severity.",
-            is_internal=False,  # Public comment: visible to Alice, Charlie, and Admin
+            is_internal=False,
             created_at=now - timedelta(days=2, hours=16),
         ),
         Comment(
-            report_id=r2_id,
-            author_id=charlie_id,
+            report_id=r2.id,
+            author_id=charlie.id,
             body="INTERNAL: Billing team is patching the tenant_id check in PR #412 today.",
-            is_internal=True,   # Analyst-only note (FR-19): hidden when Alice fetches comments!
+            is_internal=True,
             created_at=now - timedelta(days=2, hours=15),
         ),
         Comment(
-            report_id=r2_id,
-            author_id=alice_id,
+            report_id=r2.id,
+            author_id=alice.id,
             body="Glad to help! Let me know when you'd like me to re-test the fix.",
-            is_internal=False,  # Public reply from Researcher Alice
+            is_internal=False,
             created_at=now - timedelta(days=2, hours=10),
         ),
     ]
     session.add_all(comments)
-
-    # Commit the entire seed transaction atomically
     session.commit()
 
     return {
         "seeded": True,
-        "users": 5,
+        "users": 6,
         "reports": 4,
         "status_history": len(histories),
         "comments": len(comments),
@@ -282,7 +308,6 @@ def seed_database(session: Session) -> dict:
 
 
 if __name__ == "__main__":
-    # Allow running directly from terminal via: `python -m app.seed`
     create_db_and_tables()
     with Session(engine) as db_session:
         result = seed_database(db_session)
