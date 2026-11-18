@@ -1,44 +1,8 @@
-/**
- * frontend/src/pages/ReportDetailPage.tsx
- * ---------------------------------------
- * Complete Report Detail, Researcher CRUD, Analyst/Admin Triage, Status History
- * Timeline, and Role-Segregated Comments Thread (`FR-09` through `FR-20`).
- *
- * What this page implements for your Mid-Project MVP Viva:
- * 1. **Read (Single) (`GET /api/v1/reports/{id}`, `FR-09`)**: Displays full
- *    vulnerability report metadata, technical description, reproduction steps,
- *    first-response SLA timestamp, and the visible `rejection_reason` alert
- *    banner whenever a report has been `rejected` (`FR-14`, `AC-09`).
- * 2. **Researcher Update (`PUT /api/v1/reports/{id}`, `FR-10a`, `AC-05`)**:
- *    Allows the owning Researcher to edit their report inline ONLY while
- *    `status === "new"`.
- * 3. **Researcher Delete (`DELETE /api/v1/reports/{id}`, `FR-10b`, `AC-06`, `AC-07`)**:
- *    Allows the owning Researcher to withdraw/delete their report ONLY while
- *    `status === "new"`.
- * 4. **Analyst & Admin Triage Panel (`PATCH /severity`, `PATCH /status`, `FR-12`..`FR-16`)**:
- *    - Allows Security Analysts (`charlie@vulndesk.local`) to assign `final_severity`
- *      (`low`, `medium`, `high`, `critical`) and transition status along allowed
- *      workflow paths (`new -> under_review -> confirmed -> fixed -> closed`, or
- *      `rejected` with mandatory `rejection_reason`, or `duplicate` with mandatory
- *      `duplicate_of_id`).
- *    - Allows Platform Admins (`admin@vulndesk.local`) to reopen end-state reports
- *      (`closed`, `rejected`, `duplicate`) back to `under_review` (`FR-16`).
- * 5. **Append-Only Status History Timeline (`GET /history`, `FR-15`, `NFR-08`)**:
- *    Displays the chronological audit log of every status change, who performed
- *    it, and when.
- * 6. **Comments & Internal Analyst Notes (`GET` & `POST /comments`, `FR-18`..`FR-20`, `AC-10`)**:
- *    - Researchers and Analysts can post public comments.
- *    - Analysts can toggle `is_internal = true` to post private internal notes.
- *    - Switching the top-bar persona between `charlie@vulndesk.local` and
- *      `alice@vulndesk.local` immediately proves `AC-10` (internal notes vanish
- *      from the API response and UI when viewed by a Researcher).
- */
-
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { RoleBadge, SeverityBadge, StatusBadge } from "../components/Badges";
-import { useDemoUser } from "../context/DemoUserContext";
+import { useAuth } from "../context/AuthContext";
 import {
   CommentItem,
   ReportRead,
@@ -54,11 +18,6 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "critical", label: "Critical" },
 ];
 
-/**
- * Mirrors `ALLOWED_ANALYST_TRANSITIONS` in `backend/app/services/triage_service.py`
- * so the UI guides the analyst while still allowing viva demonstrations of
- * backend precondition checks (like AC-08 Confirm without Final Severity).
- */
 const ANALYST_NEXT_STATUSES: Record<
   ReportStatus,
   { value: ReportStatus; label: string }[]
@@ -84,7 +43,7 @@ const END_STATES: ReportStatus[] = ["closed", "rejected", "duplicate"];
 
 export const ReportDetailPage: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
-  const { currentUser } = useDemoUser();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   const [report, setReport] = useState<ReportRead | null>(null);
@@ -93,7 +52,6 @@ export const ReportDetailPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Researcher Inline Edit Mode state (FR-10a)
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editTitle, setEditTitle] = useState<string>("");
   const [editComponent, setEditComponent] = useState<string>("");
@@ -105,7 +63,6 @@ export const ReportDetailPage: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
 
-  // Analyst / Admin Triage Panel state (FR-12 .. FR-16)
   const [selectedFinalSeverity, setSelectedFinalSeverity] =
     useState<Severity>("high");
   const [savingSeverity, setSavingSeverity] = useState<boolean>(false);
@@ -115,14 +72,13 @@ export const ReportDetailPage: React.FC = () => {
   const [duplicateOfId, setDuplicateOfId] = useState<string>("");
   const [savingStatus, setSavingStatus] = useState<boolean>(false);
 
-  // Comments & Internal Notes state (FR-18 .. FR-20)
   const [commentBody, setCommentBody] = useState<string>("");
   const [isInternalNote, setIsInternalNote] = useState<boolean>(false);
   const [postingComment, setPostingComment] = useState<boolean>(false);
   const [commentError, setCommentError] = useState<string | null>(null);
 
   const loadAllReportData = useCallback(async () => {
-    if (!reportId) return;
+    if (!reportId || !currentUser) return;
     setLoading(true);
     setError(null);
     setActionError(null);
@@ -140,7 +96,6 @@ export const ReportDetailPage: React.FC = () => {
       setHistory(historyData);
       setComments(commentsData);
 
-      // Sync Researcher edit form fields
       setEditTitle(reportData.title);
       setEditComponent(reportData.component);
       setEditSeverity(reportData.proposed_severity);
@@ -148,12 +103,10 @@ export const ReportDetailPage: React.FC = () => {
       setEditSteps(reportData.steps_to_reproduce);
       setIsEditing(false);
 
-      // Sync Analyst severity selector
       setSelectedFinalSeverity(
         reportData.final_severity || reportData.proposed_severity
       );
 
-      // Default next status option based on role and current report status
       const nextOptions = ANALYST_NEXT_STATUSES[reportData.status] || [];
       if (nextOptions.length > 0) {
         setTargetStatus(nextOptions[0].value);
@@ -165,7 +118,6 @@ export const ReportDetailPage: React.FC = () => {
         reportData.duplicate_of_id ? String(reportData.duplicate_of_id) : ""
       );
 
-      // Reset internal note checkbox if user switched to a Researcher
       if (currentUser.role !== "analyst") {
         setIsInternalNote(false);
       }
@@ -179,11 +131,13 @@ export const ReportDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [reportId, currentUser.email, currentUser.role]);
+  }, [reportId, currentUser]);
 
   useEffect(() => {
     loadAllReportData();
   }, [loadAllReportData]);
+
+  if (!currentUser) return null;
 
   const isOwner =
     report &&
@@ -191,7 +145,6 @@ export const ReportDetailPage: React.FC = () => {
     report.reporter_id === currentUser.id;
   const canMutateAsResearcher = Boolean(isOwner && report?.status === "new");
 
-  /** Researcher Update (`PUT /api/v1/reports/{id}`) */
   const handleSaveUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!report) return;
@@ -221,7 +174,6 @@ export const ReportDetailPage: React.FC = () => {
     }
   };
 
-  /** Researcher Delete (`DELETE /api/v1/reports/{id}`) */
   const handleDeleteReport = async () => {
     if (!report) return;
     const confirmed = window.confirm(
@@ -244,7 +196,6 @@ export const ReportDetailPage: React.FC = () => {
     }
   };
 
-  /** Analyst Assign Final Severity (`PATCH /api/v1/reports/{id}/severity`, FR-12) */
   const handleAssignSeverity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!report) return;
@@ -271,7 +222,6 @@ export const ReportDetailPage: React.FC = () => {
     }
   };
 
-  /** Analyst / Admin Transition Status (`PATCH /api/v1/reports/{id}/status`, FR-13..FR-16) */
   const handleStatusTransition = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!report) return;
@@ -316,7 +266,6 @@ export const ReportDetailPage: React.FC = () => {
     }
   };
 
-  /** Post Comment or Internal Note (`POST /api/v1/reports/{id}/comments`, FR-18..FR-19) */
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!report || !commentBody.trim()) return;
@@ -383,6 +332,13 @@ export const ReportDetailPage: React.FC = () => {
         <span className="report-uuid-label">
           Report ID: <code>#{report.id}</code> • Reporter ID:{" "}
           <code>#{report.reporter_id}</code>
+          {report.sla_due_at && (
+            <>
+              {" "}
+              • SLA Due:{" "}
+              <strong>{new Date(report.sla_due_at).toLocaleString()}</strong>
+            </>
+          )}
           {report.first_response_at && (
             <>
               {" "}
@@ -395,7 +351,6 @@ export const ReportDetailPage: React.FC = () => {
         </span>
       </div>
 
-      {/* Rejection Feedback Banner (FR-08 / FR-14 / AC-09) */}
       {report.status === "rejected" && report.rejection_reason && (
         <div className="alert alert-danger" role="alert">
           <strong>Report Rejected by Security Analyst:</strong>{" "}
@@ -403,7 +358,6 @@ export const ReportDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Duplicate Reference Banner */}
       {report.status === "duplicate" && report.duplicate_of_id && (
         <div className="alert alert-warning">
           <strong>Marked as Duplicate:</strong> This report is a duplicate of
@@ -427,7 +381,6 @@ export const ReportDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* 1. Primary Report Detail & Researcher Edit/Delete Card */}
       <div className="card detail-card">
         <div className="detail-header">
           <div>
@@ -443,6 +396,9 @@ export const ReportDetailPage: React.FC = () => {
                   labelPrefix="Final"
                 />
               )}
+              {report.is_overdue && (
+                <span className="overdue-badge">⏰ OVERDUE SLA</span>
+              )}
               <code className="component-tag">{report.component}</code>
             </div>
             <h1 className="detail-title">
@@ -456,7 +412,6 @@ export const ReportDetailPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Researcher Owner CRUD Controls (FR-10a & FR-10b) */}
           {isOwner && (
             <div className="owner-actions">
               {canMutateAsResearcher ? (
@@ -600,7 +555,6 @@ export const ReportDetailPage: React.FC = () => {
         )}
       </div>
 
-      {/* 2. Analyst & Admin Triage Panel (FR-12, FR-13, FR-14, FR-16) */}
       {(currentUser.role === "analyst" || currentUser.role === "admin") && (
         <div className="card triage-card mt-4">
           <div className="triage-card-header">
@@ -619,7 +573,6 @@ export const ReportDetailPage: React.FC = () => {
 
           {currentUser.role === "analyst" && (
             <div className="triage-grid">
-              {/* Step A: Assign Final Severity (FR-12) */}
               <form onSubmit={handleAssignSeverity} className="triage-box">
                 <h3 className="section-heading">
                   1. Assign Official Final Severity (`FR-12`)
@@ -658,7 +611,6 @@ export const ReportDetailPage: React.FC = () => {
                 </button>
               </form>
 
-              {/* Step B: Transition Workflow Status (FR-13, FR-14) */}
               <form onSubmit={handleStatusTransition} className="triage-box">
                 <h3 className="section-heading">
                   2. Transition Report Status (`FR-13`, `FR-14`)
@@ -666,9 +618,9 @@ export const ReportDetailPage: React.FC = () => {
                 {analystAllowedTargets.length === 0 ? (
                   <p className="field-hint">
                     This report is in an end state (
-                    <code>{report.status}</code>). Only an Administrator (
-                    <code>admin@vulndesk.local</code>) can reopen end-state
-                    reports back to <code>under_review</code> (`FR-16`).
+                    <code>{report.status}</code>). Only an Administrator can
+                    reopen end-state reports back to <code>under_review</code>{" "}
+                    (`FR-16`).
                   </p>
                 ) : (
                   <>
@@ -794,8 +746,6 @@ export const ReportDetailPage: React.FC = () => {
                   <code>{report.status}</code>). Administrators only reopen
                   reports that have reached <code>closed</code>,{" "}
                   <code>rejected</code>, or <code>duplicate</code> (`FR-16`).
-                  Switch to <strong>Charlie Hossain (Analyst)</strong> in the
-                  top bar to perform normal triage transitions.
                 </p>
               )}
             </div>
@@ -803,9 +753,7 @@ export const ReportDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Immutable Status History Timeline & Discussion Comments Grid */}
       <div className="bottom-grid mt-4">
-        {/* Left Column: Append-Only Status History Timeline (FR-15) */}
         <section className="card section-card">
           <h2 className="section-title">
             📜 Immutable Status History (`FR-15`)
@@ -842,7 +790,6 @@ export const ReportDetailPage: React.FC = () => {
           )}
         </section>
 
-        {/* Right Column: Public Comments & Analyst Internal Notes (FR-18..FR-20, AC-10) */}
         <section className="card section-card">
           <h2 className="section-title">
             💬 Discussion &amp; Triage Notes (`FR-18`–`FR-20`)
@@ -888,7 +835,6 @@ export const ReportDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Comment Composer Form (Researchers & Analysts can post per FR-18) */}
           {(currentUser.role === "researcher" ||
             currentUser.role === "analyst") && (
             <form onSubmit={handlePostComment} className="comment-form mt-3">

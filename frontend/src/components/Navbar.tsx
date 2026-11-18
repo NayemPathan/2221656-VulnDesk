@@ -1,24 +1,19 @@
-/**
- * frontend/src/components/Navbar.tsx
- * ----------------------------------
- * Top navigation bar featuring:
- * 1. Brand identity ("VulnDesk") and quick navigation links ("Reports Queue",
- *    "+ Submit Report" when acting as a Researcher).
- * 2. Live Demo Persona Switcher dropdown so your course instructor can switch
- *    between Alice, Bob, Mallory (Banned), Charlie (Analyst), and Nadia (Admin)
- *    in one click and immediately watch ownership isolation and UI permissions update.
- */
-
-
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
-import { useDemoUser } from "../context/DemoUserContext";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { RoleBadge } from "./Badges";
 
 
 export const Navbar: React.FC = () => {
-  const { users, currentUser, selectUserByEmail } = useDemoUser();
+  const { currentUser, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
 
   return (
@@ -29,61 +24,88 @@ export const Navbar: React.FC = () => {
             <span className="brand-shield">🛡️</span>
             <div>
               <span className="brand-title">VulnDesk</span>
-              <span className="brand-subtitle">Vulnerability Triage & RBAC</span>
+              <span className="brand-subtitle">Vulnerability Triage &amp; RBAC</span>
             </div>
           </Link>
 
 
-          <nav className="navbar-links">
-            <Link
-              to="/"
-              className={
-                location.pathname === "/" ? "nav-link active" : "nav-link"
-              }
-            >
-              Reports Queue
-            </Link>
-            {currentUser.role === "researcher" && (
+          {currentUser && (
+            <nav className="navbar-links">
               <Link
-                to="/reports/new"
+                to="/"
                 className={
-                  location.pathname === "/reports/new"
-                    ? "nav-link nav-cta active"
-                    : "nav-link nav-cta"
+                  location.pathname === "/" ? "nav-link active" : "nav-link"
                 }
               >
-                + Submit Report
+                Reports
               </Link>
-            )}
-          </nav>
+              <Link
+                to="/dashboard"
+                className={
+                  location.pathname === "/dashboard"
+                    ? "nav-link active"
+                    : "nav-link"
+                }
+              >
+                Dashboard
+              </Link>
+              {currentUser.role === "researcher" && (
+                <Link
+                  to="/reports/new"
+                  className={
+                    location.pathname === "/reports/new"
+                      ? "nav-link nav-cta active"
+                      : "nav-link nav-cta"
+                  }
+                >
+                  + Submit Report
+                </Link>
+              )}
+              {currentUser.role === "admin" && (
+                <Link
+                  to="/admin/users"
+                  className={
+                    location.pathname === "/admin/users"
+                      ? "nav-link active"
+                      : "nav-link"
+                  }
+                >
+                  Admin Users
+                </Link>
+              )}
+            </nav>
+          )}
         </div>
 
 
         <div className="navbar-right">
-          <div className="persona-switcher">
-            <label htmlFor="demo-persona-select" className="persona-label">
-              Active Demo Persona (`X-Demo-User`):
-            </label>
-            <div className="persona-controls">
-              <select
-                id="demo-persona-select"
-                className="persona-select"
-                value={currentUser.email}
-                onChange={(e) => selectUserByEmail(e.target.value)}
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.email}>
-                    {u.name} — {u.email}
-                    {u.is_banned ? " [BANNED]" : ""}
-                  </option>
-                ))}
-              </select>
+          {currentUser ? (
+            <div className="navbar-user">
+              <Link to="/profile" className="nav-link">
+                {currentUser.name}
+              </Link>
               <RoleBadge
                 role={currentUser.role}
                 isBanned={currentUser.is_banned}
               />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="navbar-links">
+              <Link to="/login" className="nav-link">
+                Login
+              </Link>
+              <Link to="/register" className="nav-link nav-cta">
+                Register
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>
