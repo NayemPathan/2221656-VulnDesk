@@ -4,17 +4,20 @@ FastAPI Application Entry Point (backend/app/main.py)
 WHAT THIS FILE DOES:
 Creates and configures the main FastAPI `app` object, attaches CORS middleware so the React
 frontend can talk to the API, configures the interactive Swagger docs at `/api/docs` (NFR-13),
-and registers all API routers (`health`, `reports`, `triage`, `comments`) under `/api/v1`.
+and registers all API routers (`health`, `auth`, `reports`, `triage`, `comments`) under `/api/v1`.
 =====================================================================
 """
 
-import traceback
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -25,7 +28,6 @@ def create_app() -> FastAPI:
         description=(
             "VulnDesk: A Vulnerability Report Intake, Triage and Access-Controlled Tracking System."
         ),
-        # SRS NFR-13 & TDD Section 5 require interactive Swagger UI at /api/docs
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
@@ -48,7 +50,8 @@ def create_app() -> FastAPI:
         """
         try:
             return await call_next(request)
-        except Exception as exc:
+        except SQLAlchemyError as exc:
+            logger.exception("Database error while handling %s", request.url.path)
             return JSONResponse(
                 status_code=500,
                 content={
@@ -61,26 +64,26 @@ def create_app() -> FastAPI:
 
     try:
         from app.database import ensure_sqlite_initialized
-        from app.routers import comments, health, reports, triage
+        from app.routers import auth, comments, health, reports, triage
 
         ensure_sqlite_initialized()
 
-        # Mount all MVP routers under /api/v1
+        # Mount all routers under /api/v1
         app.include_router(health.router, prefix=settings.api_v1_prefix)
+        app.include_router(auth.router, prefix=settings.api_v1_prefix)
         app.include_router(reports.router, prefix=settings.api_v1_prefix)
         app.include_router(triage.router, prefix=settings.api_v1_prefix)
         app.include_router(comments.router, prefix=settings.api_v1_prefix)
 
         # Also mount under /v1 (hidden from OpenAPI docs) in case a serverless proxy strips /api
         app.include_router(health.router, prefix="/v1", include_in_schema=False)
+        app.include_router(auth.router, prefix="/v1", include_in_schema=False)
         app.include_router(reports.router, prefix="/v1", include_in_schema=False)
         app.include_router(triage.router, prefix="/v1", include_in_schema=False)
         app.include_router(comments.router, prefix="/v1", include_in_schema=False)
-    except Exception as startup_exc:
-        # Save exception summary to a local string variable because Python 3 automatically
-        # unbinds `startup_exc` when the `except` block exits.
+    except (ImportError, SQLAlchemyError) as startup_exc:
+        logger.exception("Backend startup failed")
         error_summary = f"{startup_exc.__class__.__name__}: {startup_exc}"
-        error_trace = traceback.format_exc()
 
         @app.api_route(
             "/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -92,8 +95,7 @@ def create_app() -> FastAPI:
                     "detail": (
                         f"Backend startup error on /{path} ({error_summary}). "
                         "Check DATABASE_URL in Vercel Settings -> Environment Variables."
-                    ),
-                    "traceback": error_trace,
+                    )
                 },
             )
 

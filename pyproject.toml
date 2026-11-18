@@ -16,3 +16,6 @@ dependencies = [
     "pwdlib[argon2]>=0.2.1",
     "PyJWT>=2.9.0",
 ]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Cookie"]

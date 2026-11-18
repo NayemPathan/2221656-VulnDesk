@@ -1,17 +1,8 @@
 """
 Application Configuration (backend/app/config.py)
 =====================================================================
-WHAT THIS FILE DOES:
-Reads configuration settings (like the database URL, demo mode flag, and CORS origins)
-from environment variables or the local `.env` file.
-
-WHY WE WROTE IT THIS WAY:
-1. Security (TDD Section 8): Secrets like database passwords must never be hardcoded in Python files.
-2. Driver Compatibility: Supabase gives URLs starting with `postgres://` or `postgresql://`,
-   but SQLAlchemy 2.0 + psycopg v3 requires `postgresql+psycopg://`. The helper function
-   `_normalize_database_url` automatically fixes the prefix so your app never crashes on Vercel.
-3. Local Testing Fallback: If no `DATABASE_URL` is set, it defaults to a local SQLite file
-   (`sqlite:///./vulndesk_local.db`) so you or your tutor can run the project in 1 minute even offline.
+Reads database, demo-mode, CORS, and Beta JWT/cookie configuration from
+environment variables or `.env`.
 =====================================================================
 """
 
@@ -24,17 +15,12 @@ load_dotenv()
 
 
 def _default_sqlite_url() -> str:
-    """Use writable /tmp directory if running on Vercel without DATABASE_URL set."""
     if os.getenv("VERCEL"):
         return "sqlite:////tmp/vulndesk_local.db"
     return "sqlite:///./vulndesk_local.db"
 
 
 def _normalize_database_url(raw_url: str | None) -> str:
-    """
-    Convert 'postgres://' or 'postgresql://' into 'postgresql+psycopg://' and strip
-    any accidental quotes or 'DATABASE_URL=' prefixes pasted into Vercel.
-    """
     if not raw_url or not raw_url.strip():
         return _default_sqlite_url()
 
@@ -58,8 +44,10 @@ def _parse_origins(raw_origins: str) -> list[str]:
 
 @dataclass
 class Settings:
+    """Centralized settings object imported across the backend."""
+
     project_name: str = "VulnDesk API"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
     api_v1_prefix: str = "/api/v1"
 
     database_url: str = field(
@@ -73,8 +61,24 @@ class Settings:
 
     allowed_origins: list[str] = field(
         default_factory=lambda: _parse_origins(
-            os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,*")
+            os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
         )
+    )
+
+    # Beta JWT & Lockout Settings (Phases 7-10)
+    jwt_secret_key: str = field(
+        default_factory=lambda: os.getenv(
+            "JWT_SECRET_KEY", "dev-insecure-vulndesk-jwt-secret-change-in-prod"
+        )
+    )
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+    max_failed_login_attempts: int = 5
+    lockout_minutes: int = 15
+    cookie_secure: bool = field(
+        default_factory=lambda: bool(os.getenv("VERCEL"))
+        or os.getenv("COOKIE_SECURE", "false").strip().lower() in ("true", "1", "yes")
     )
 
 

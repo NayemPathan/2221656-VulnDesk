@@ -1,12 +1,11 @@
-"""
-Pydantic Request & Response Schemas Package (backend/app/schemas/__init__.py)
-=====================================================================
-WHAT THIS FILE DOES:
-Re-exports all Pydantic schema classes (`report`, `triage`, `comment`) so routers and services
-can import them from `app.schemas`.
-=====================================================================
-"""
-
+from app.schemas.auth import (
+    AuthUserRead,
+    LoginRequest,
+    PasswordChangeRequest,
+    ProfileUpdateRequest,
+    RegisterRequest,
+    TokenResponse,
+)
 from app.schemas.comment import CommentCreate, CommentRead
 from app.schemas.report import (
     DemoUserRead,
@@ -18,9 +17,14 @@ from app.schemas.report import (
 from app.schemas.triage import SeverityUpdate, StatusHistoryRead, StatusUpdate
 
 __all__ = [
+    "AuthUserRead",
     "CommentCreate",
     "CommentRead",
     "DemoUserRead",
+    "LoginRequest",
+    "PasswordChangeRequest",
+    "ProfileUpdateRequest",
+    "RegisterRequest",
     "ReportCreate",
     "ReportListResponse",
     "ReportRead",
@@ -28,4 +32,5 @@ __all__ = [
     "SeverityUpdate",
     "StatusHistoryRead",
     "StatusUpdate",
+    "TokenResponse",
 ]

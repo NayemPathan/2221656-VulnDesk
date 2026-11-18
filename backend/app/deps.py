@@ -1,27 +1,11 @@
 """
 Authentication & Current User Dependency (backend/app/deps.py)
 =====================================================================
-WHAT THIS FILE DOES:
-Defines `get_current_user()`, a FastAPI Dependency Injection function that resolves which
-User is making the current HTTP request.
-
-WHY WE WROTE IT THIS WAY (SRS FR-30 & TDD Section 6 "MVP Seam"):
-1. What is the "MVP Seam"?
-   In the MVP (Milestones 1-3), real JWT login is not built yet. Instead, the caller sends the
-   `X-Demo-User` HTTP header containing a seeded demo user's email (e.g. `alice@vulndesk.local`
-   or `charlie@vulndesk.local`).
-2. Why put this logic inside `get_current_user()`?
-   Every router in our app simply declares `current_user: User = Depends(get_current_user)`.
-   When we move to the Beta release (Milestone 4), we only change the inside of THIS function
-   to decode a JWT Bearer token — none of our routers or services will need to change!
-3. Why does `get_current_user` allow a banned user (`mallory@vulndesk.local`) through in MVP?
-   Because Submission Policy Rule (iv) (FR-08) requires `POST /api/v1/reports` to check whether
-   the researcher's account is banned and return HTTP `409 Conflict` with the specific policy
-   reason! If `deps.py` blocked Mallory with 401 first, we could never test Rule (iv) returning 409.
+Resolves the acting User from:
+1. `Authorization: Bearer <jwt>` header (Beta JWT Auth), OR
+2. `X-Demo-User` header when `DEMO_MODE=true` and no Bearer token is supplied.
 =====================================================================
 """
-
-from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import func
@@ -30,44 +14,58 @@ from sqlmodel import Session, select
 from app.config import settings
 from app.database import get_session
 from app.models import User
+from app.services.auth_service import decode_access_token
 
 
 def get_current_user(
-    session: Annotated[Session, Depends(get_session)],
-    x_demo_user: Annotated[
-        str | None,
-        Header(alias="X-Demo-User", description="..."),
-    ] = None,
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    x_demo_user: str | None = Header(default=None, alias="X-Demo-User"),
+    session: Session = Depends(get_session),
 ) -> User:
-    """
-    Resolve the acting user from the `X-Demo-User` header when `DEMO_MODE=true`.
-    Raises HTTP 401 if Demo Mode is disabled, the header is missing, or the user does not exist.
-    """
-    # Security check (TDD Section 6): The X-Demo-User header is only honored when DEMO_MODE=true
+    """Resolve the acting user from a JWT Bearer token or (if DEMO_MODE=true) X-Demo-User."""
+    # 1. Preferred Path: JWT Bearer Token
+    if authorization and authorization.strip().lower().startswith("bearer "):
+        raw_token = authorization.strip().split(" ", 1)[1].strip()
+        payload = decode_access_token(raw_token)
+        sub = payload.get("sub")
+        if not sub or not str(sub).isdigit():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token subject.",
+            )
+        user = session.get(User, int(sub))
+        if user is None or user.is_deleted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account not found or deleted.",
+            )
+        if user.is_banned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is banned.",
+            )
+        return user
+
+    # 2. MVP Fallback Path (only active while DEMO_MODE=true)
     if not settings.demo_mode:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Demo mode is disabled. Please authenticate with a valid token.",
+            detail="Missing Authorization Bearer token.",
         )
 
-    # AC-15: If no identity header is provided, reject with 401 Unauthorized
     if not x_demo_user or not x_demo_user.strip():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing X-Demo-User header (e.g. alice@vulndesk.local).",
+            detail="Missing Authorization Bearer token or X-Demo-User header.",
         )
 
     identifier = x_demo_user.strip()
-
-    # Allow lookup by numeric user ID (e.g. "1") or case-insensitive email (e.g. "alice@vulndesk.local")
     if identifier.isdigit():
         statement = select(User).where(User.id == int(identifier))
     else:
         statement = select(User).where(func.lower(User.email) == identifier.lower())
 
     user = session.exec(statement).first()
-
-    # Reject if user does not exist or has been soft-deleted (is_deleted=True)
     if user is None or user.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
