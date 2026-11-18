@@ -1,24 +1,8 @@
-/**
- * frontend/src/pages/ReportFormPage.tsx
- * -------------------------------------
- * Implements the **Create** part of Frontend CRUD (`POST /api/v1/reports`,
- * `FR-07`, `FR-08`).
- *
- * Key academic features for the viva:
- * 1. Live character counters helping the researcher satisfy our 5-rule
- *    Submission Policy (`title` 5–120 chars, `description` 50–5,000 chars,
- *    `component` 1–100 chars, `steps_to_reproduce` 10–5,000 chars).
- * 2. Includes a 1-click "Auto-Fill Sample PoC" button for fast live demos, and
- *    surfaces backend HTTP 403 / 409 / 422 policy errors in a prominent banner.
- */
-
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import { useDemoUser } from "../context/DemoUserContext";
+import { useAuth } from "../context/AuthContext";
 import { Severity } from "../types";
-
 
 const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "low", label: "Low (10-day SLA)" },
@@ -27,11 +11,9 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "critical", label: "Critical (1-day SLA)" },
 ];
 
-
 export const ReportFormPage: React.FC = () => {
-  const { currentUser } = useDemoUser();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
-
 
   const [title, setTitle] = useState<string>("");
   const [component, setComponent] = useState<string>("");
@@ -39,18 +21,17 @@ export const ReportFormPage: React.FC = () => {
   const [description, setDescription] = useState<string>("");
   const [stepsToReproduce, setStepsToReproduce] = useState<string>("");
 
-
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  if (!currentUser) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setErrorStatus(null);
     setErrorMessage(null);
-
 
     try {
       const created = await api.createReport({
@@ -73,11 +54,6 @@ export const ReportFormPage: React.FC = () => {
     }
   };
 
-
-  /**
-   * Quick-fill helper so the student can test a valid submission or a banned-user
-   * rejection in 1 click during the viva demonstration.
-   */
   const fillSampleValidReport = () => {
     setTitle("Reflected XSS in Search Filter Query Parameter");
     setComponent("Storefront Web - Search");
@@ -92,7 +68,6 @@ export const ReportFormPage: React.FC = () => {
     setErrorStatus(null);
   };
 
-
   return (
     <div className="page-container narrow-container">
       <div className="breadcrumb-bar">
@@ -100,7 +75,6 @@ export const ReportFormPage: React.FC = () => {
           ← Back to Reports Queue
         </Link>
       </div>
-
 
       <div className="card form-card">
         <div className="form-card-header">
@@ -120,16 +94,14 @@ export const ReportFormPage: React.FC = () => {
           </button>
         </div>
 
-
         {currentUser.role !== "researcher" && (
           <div className="alert alert-warning">
-            <strong>Role Notice:</strong> You are currently acting as{" "}
+            <strong>Role Notice:</strong> You are currently signed in as{" "}
             <strong>{currentUser.role}</strong>. Only users with the{" "}
             <code>researcher</code> role can submit new vulnerability reports (
             <code>POST /api/v1/reports</code> will return HTTP 403 Forbidden).
           </div>
         )}
-
 
         {errorMessage && (
           <div className="alert alert-danger" role="alert">
@@ -140,7 +112,6 @@ export const ReportFormPage: React.FC = () => {
             {errorMessage}
           </div>
         )}
-
 
         <form onSubmit={handleSubmit} className="vuln-form">
           <div className="form-group">
@@ -162,7 +133,6 @@ export const ReportFormPage: React.FC = () => {
             </span>
           </div>
 
-
           <div className="form-row-2">
             <div className="form-group">
               <label htmlFor="report-component">
@@ -178,7 +148,6 @@ export const ReportFormPage: React.FC = () => {
                 onChange={(e) => setComponent(e.target.value)}
               />
             </div>
-
 
             <div className="form-group">
               <label htmlFor="report-severity">
@@ -201,7 +170,6 @@ export const ReportFormPage: React.FC = () => {
             </div>
           </div>
 
-
           <div className="form-group">
             <label htmlFor="report-description">
               Vulnerability Description &amp; Impact{" "}
@@ -221,7 +189,6 @@ export const ReportFormPage: React.FC = () => {
               requires 50–5,000 characters)
             </span>
           </div>
-
 
           <div className="form-group">
             <label htmlFor="report-steps">
@@ -243,7 +210,6 @@ export const ReportFormPage: React.FC = () => {
               characters required)
             </span>
           </div>
-
 
           <div className="form-actions">
             <Link to="/" className="btn btn-secondary">

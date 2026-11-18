@@ -21,12 +21,63 @@ export type ReportStatus =
 
 export type Severity = "low" | "medium" | "high" | "critical";
 
-export interface DemoUser {
+export interface AuthUser {
   id: number;
   name: string;
   email: string;
   role: UserRole;
   is_banned: boolean;
+  created_at: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: AuthUser;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  is_banned: boolean;
+  is_deleted: boolean;
+  failed_login_attempts: number;
+  locked_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserCreatePayload {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface DashboardSummary {
+  role: UserRole;
+  total_reports: number;
+  open_reports: number;
+  overdue_reports: number;
+  by_status: Record<string, number>;
+  by_severity: Record<string, number>;
+  avg_first_response_hours: number | null;
+  total_users: number | null;
+  banned_users: number | null;
 }
 
 export interface ReportRead {
@@ -45,6 +96,8 @@ export interface ReportRead {
   first_response_at: string | null;
   created_at: string;
   updated_at: string;
+  sla_due_at?: string;
+  is_overdue?: boolean;
 }
 
 export interface ReportListResponse {

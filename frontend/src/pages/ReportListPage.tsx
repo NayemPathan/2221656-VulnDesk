@@ -1,25 +1,9 @@
-/**
- * frontend/src/pages/ReportListPage.tsx
- * -------------------------------------
- * Implements the **Read (List)** part of Frontend CRUD (`FR-09`, `FR-11`):
- * - Automatically re-fetches whenever `currentUser.email` changes in the
- *   top-bar Demo Persona Switcher, demonstrating Ownership Isolation live:
- *   - Alice (`alice@vulndesk.local`) sees only Alice's 3 reports (`#1`, `#2`, `#3`).
- *   - Bob (`bob@vulndesk.local`) sees only Bob's 1 report (`#4`).
- *   - Charlie (`charlie@vulndesk.local`) and Admin (`admin@vulndesk.local`) see all 4 global reports.
- * - Provides keyword search (`keyword`), status filter (`status`), severity filter
- *   (`severity`), and component filter (`component`) mapped directly to
- *   `GET /api/v1/reports` query parameters.
- */
-
-
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { SeverityBadge, StatusBadge } from "../components/Badges";
-import { useDemoUser } from "../context/DemoUserContext";
+import { useAuth } from "../context/AuthContext";
 import { ReportRead, ReportStatus, Severity } from "../types";
-
 
 const STATUS_OPTIONS: { value: ReportStatus; label: string }[] = [
   { value: "new", label: "New" },
@@ -31,7 +15,6 @@ const STATUS_OPTIONS: { value: ReportStatus; label: string }[] = [
   { value: "duplicate", label: "Duplicate" },
 ];
 
-
 const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
@@ -39,10 +22,8 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "critical", label: "Critical" },
 ];
 
-
 export const ReportListPage: React.FC = () => {
-  const { currentUser } = useDemoUser();
-
+  const { currentUser } = useAuth();
 
   const [reports, setReports] = useState<ReportRead[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -50,19 +31,16 @@ export const ReportListPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [pageSize] = useState<number>(10);
 
-
-  // Filter states matching backend/app/routers/reports.py query params
   const [keyword, setKeyword] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [severityFilter, setSeverityFilter] = useState<string>("");
   const [componentFilter, setComponentFilter] = useState<string>("");
 
-
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-
   const fetchReports = useCallback(async () => {
+    if (!currentUser) return;
     setLoading(true);
     setError(null);
     try {
@@ -87,7 +65,7 @@ export const ReportListPage: React.FC = () => {
       setLoading(false);
     }
   }, [
-    currentUser.email,
+    currentUser,
     keyword,
     statusFilter,
     severityFilter,
@@ -96,11 +74,11 @@ export const ReportListPage: React.FC = () => {
     pageSize,
   ]);
 
-
   useEffect(() => {
     fetchReports();
   }, [fetchReports]);
 
+  if (!currentUser) return null;
 
   const handleResetFilters = () => {
     setKeyword("");
@@ -109,7 +87,6 @@ export const ReportListPage: React.FC = () => {
     setComponentFilter("");
     setPage(1);
   };
-
 
   return (
     <div className="page-container">
@@ -121,14 +98,13 @@ export const ReportListPage: React.FC = () => {
               : "Global Vulnerability Triage Queue"}
           </h1>
           <p className="page-subtitle">
-            Viewing as <strong>{currentUser.name}</strong> (
+            Signed in as <strong>{currentUser.name}</strong> (
             <code>{currentUser.email}</code>).{" "}
             {currentUser.role === "researcher"
               ? "Ownership isolation (FR-09) scopes this list strictly to reports you submitted."
               : "Analyst/Admin privileges grant read access to all platform submissions."}
           </p>
         </div>
-
 
         {currentUser.role === "researcher" && (
           <Link to="/reports/new" className="btn btn-primary">
@@ -137,19 +113,14 @@ export const ReportListPage: React.FC = () => {
         )}
       </div>
 
-
       {currentUser.is_banned && (
         <div className="alert alert-warning">
-          <strong>Account Banned (`FR-08` Rule iv):</strong> This demo
-          researcher account (<code>{currentUser.email}</code>) is flagged with{" "}
-          <code>is_banned = true</code>. Try clicking{" "}
-          <Link to="/reports/new">Submit New Report</Link> to verify the backend
-          409 Conflict policy enforcement.
+          <strong>Account Banned:</strong> Your researcher account (
+          <code>{currentUser.email}</code>) is flagged with{" "}
+          <code>is_banned = true</code>.
         </div>
       )}
 
-
-      {/* Search & Filter Bar (FR-11) */}
       <section className="card filter-card">
         <div className="filter-grid">
           <div className="form-group">
@@ -166,7 +137,6 @@ export const ReportListPage: React.FC = () => {
               }}
             />
           </div>
-
 
           <div className="form-group">
             <label htmlFor="filter-status">Lifecycle Status (`status`)</label>
@@ -188,7 +158,6 @@ export const ReportListPage: React.FC = () => {
             </select>
           </div>
 
-
           <div className="form-group">
             <label htmlFor="filter-severity">Severity Level (`severity`)</label>
             <select
@@ -209,7 +178,6 @@ export const ReportListPage: React.FC = () => {
             </select>
           </div>
 
-
           <div className="form-group">
             <label htmlFor="filter-component">
               Affected Component (`component`)
@@ -228,7 +196,6 @@ export const ReportListPage: React.FC = () => {
           </div>
         </div>
 
-
         <div className="filter-actions">
           <span className="results-counter">
             Showing <strong>{reports.length}</strong> of{" "}
@@ -244,13 +211,11 @@ export const ReportListPage: React.FC = () => {
         </div>
       </section>
 
-
       {error && (
         <div className="alert alert-danger" role="alert">
           <strong>Error loading reports:</strong> {error}
         </div>
       )}
-
 
       {loading ? (
         <div className="card loading-state">Loading vulnerability reports...</div>
@@ -258,7 +223,7 @@ export const ReportListPage: React.FC = () => {
         <div className="card empty-state">
           <h3>No vulnerability reports found</h3>
           <p>
-            No reports match your current persona scope or filter criteria.
+            No reports match your current account scope or filter criteria.
           </p>
           {currentUser.role === "researcher" && !currentUser.is_banned && (
             <Link to="/reports/new" className="btn btn-primary">
@@ -289,6 +254,9 @@ export const ReportListPage: React.FC = () => {
                     >
                       #{report.id} — {report.title}
                     </Link>
+                    {report.is_overdue && (
+                      <span className="overdue-badge">⏰ OVERDUE SLA</span>
+                    )}
                     <div className="report-meta-id">
                       <span>Reporter ID: #{report.reporter_id}</span>
                       {report.rejection_reason && (
@@ -331,7 +299,6 @@ export const ReportListPage: React.FC = () => {
               ))}
             </tbody>
           </table>
-
 
           {totalPages > 1 && (
             <div className="pagination-bar">
