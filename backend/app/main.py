@@ -64,7 +64,15 @@ def create_app() -> FastAPI:
 
     try:
         from app.database import ensure_sqlite_initialized
-        from app.routers import admin, auth, comments, health, reports, triage
+        from app.routers import (
+            admin,
+            auth,
+            comments,
+            dashboard,
+            health,
+            reports,
+            triage,
+        )
 
         ensure_sqlite_initialized()
 
@@ -75,6 +83,7 @@ def create_app() -> FastAPI:
         app.include_router(reports.router, prefix=settings.api_v1_prefix)
         app.include_router(triage.router, prefix=settings.api_v1_prefix)
         app.include_router(comments.router, prefix=settings.api_v1_prefix)
+        app.include_router(dashboard.router, prefix=settings.api_v1_prefix)
 
         # Also mount under /v1 (hidden from OpenAPI docs) in case a serverless proxy strips /api
         app.include_router(health.router, prefix="/v1", include_in_schema=False)
@@ -83,6 +92,7 @@ def create_app() -> FastAPI:
         app.include_router(reports.router, prefix="/v1", include_in_schema=False)
         app.include_router(triage.router, prefix="/v1", include_in_schema=False)
         app.include_router(comments.router, prefix="/v1", include_in_schema=False)
+        app.include_router(dashboard.router, prefix="/v1", include_in_schema=False)
 
     except (ImportError, SQLAlchemyError) as startup_exc:
         logger.exception("Backend startup failed")

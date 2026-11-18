@@ -20,9 +20,9 @@ WHY WE SEPARATE SCHEMAS FROM DATABASE MODELS (TDD Section 3):
 =====================================================================
 """
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.enums import ReportStatus, Severity, UserRole
 
@@ -98,6 +98,8 @@ class ReportUpdate(BaseModel):
             return value.strip()
         return value
 
+_SLA_DAYS = {"critical": 1, "high": 2, "medium": 5, "low": 10}
+
 
 class ReportRead(BaseModel):
     """Response schema representing a single vulnerability report (`GET /reports/{id}`, etc.)."""
@@ -119,6 +121,26 @@ class ReportRead(BaseModel):
     first_response_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def sla_due_at(self) -> datetime:
+        eff = (self.final_severity or self.proposed_severity).value
+        days = _SLA_DAYS.get(eff, 10)
+        created = (
+            self.created_at.replace(tzinfo=UTC)
+            if self.created_at.tzinfo is None
+            else self.created_at.astimezone(UTC)
+        )
+        return created + timedelta(days=days)
+
+    @computed_field
+    @property
+    def is_overdue(self) -> bool:
+        if self.status != ReportStatus.NEW or self.first_response_at is not None:
+            return False
+        return datetime.now(UTC) > self.sla_due_at
+
 
 
 class ReportListResponse(BaseModel):
