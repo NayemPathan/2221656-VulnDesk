@@ -13,6 +13,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.comment import CommentCreate, CommentRead
+from app.schemas.dashboard import DashboardSummary
 from app.schemas.report import (
     DemoUserRead,
     ReportCreate,
@@ -30,6 +31,7 @@ __all__ = [
     "AuthUserRead",
     "CommentCreate",
     "CommentRead",
+    "DashboardSummary",
     "DemoUserRead",
     "LoginRequest",
     "PasswordChangeRequest",
