@@ -1,3 +1,9 @@
+from app.schemas.admin import (
+    AdminBanUpdate,
+    AdminRoleUpdate,
+    AdminUserCreate,
+    AdminUserRead,
+)
 from app.schemas.auth import (
     AuthUserRead,
     LoginRequest,
@@ -17,6 +23,10 @@ from app.schemas.report import (
 from app.schemas.triage import SeverityUpdate, StatusHistoryRead, StatusUpdate
 
 __all__ = [
+    "AdminBanUpdate",
+    "AdminRoleUpdate",
+    "AdminUserCreate",
+    "AdminUserRead",
     "AuthUserRead",
     "CommentCreate",
     "CommentRead",
