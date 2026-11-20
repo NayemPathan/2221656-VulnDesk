@@ -3,6 +3,14 @@ import { api, ApiError } from "../api/client";
 import { DashboardSummary } from "../types";
 
 
+const SEV_BAR_COLORS: Record<string, string> = {
+  critical: "#dc2626",
+  high: "#ea580c",
+  medium: "#eab308",
+  low: "#64748b",
+};
+
+
 export const DashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +42,10 @@ export const DashboardPage: React.FC = () => {
       </div>
     );
   }
+
+
+  const maxStatus = Math.max(1, ...Object.values(summary.by_status));
+  const maxSeverity = Math.max(1, ...Object.values(summary.by_severity));
 
 
   return (
@@ -83,11 +95,22 @@ export const DashboardPage: React.FC = () => {
       <div className="bottom-grid mt-4">
         <section className="card section-card">
           <h2 className="section-title">Reports by Status</h2>
-          <div className="stat-list mt-2">
+          <div className="chart-list mt-3">
             {Object.entries(summary.by_status).map(([st, count]) => (
-              <div key={st} className="stat-row">
-                <code>{st}</code>
-                <strong>{count}</strong>
+              <div key={st} className="chart-row">
+                <div className="chart-label-row">
+                  <code>{st}</code>
+                  <strong>{count}</strong>
+                </div>
+                <div className="chart-track">
+                  <div
+                    className="chart-fill"
+                    style={{
+                      width: `${Math.round((count / maxStatus) * 100)}%`,
+                      backgroundColor: "var(--primary)",
+                    }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -96,11 +119,22 @@ export const DashboardPage: React.FC = () => {
 
         <section className="card section-card">
           <h2 className="section-title">Reports by Effective Severity</h2>
-          <div className="stat-list mt-2">
+          <div className="chart-list mt-3">
             {Object.entries(summary.by_severity).map(([sev, count]) => (
-              <div key={sev} className="stat-row">
-                <code>{sev}</code>
-                <strong>{count}</strong>
+              <div key={sev} className="chart-row">
+                <div className="chart-label-row">
+                  <code>{sev}</code>
+                  <strong>{count}</strong>
+                </div>
+                <div className="chart-track">
+                  <div
+                    className="chart-fill"
+                    style={{
+                      width: `${Math.round((count / maxSeverity) * 100)}%`,
+                      backgroundColor: SEV_BAR_COLORS[sev] || "var(--primary)",
+                    }}
+                  />
+                </div>
               </div>
             ))}
           </div>

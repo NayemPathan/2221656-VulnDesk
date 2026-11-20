@@ -2,10 +2,12 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { RoleBadge } from "./Badges";
+import { useTheme } from "../context/ThemeContext";
 
 
 export const Navbar: React.FC = () => {
   const { currentUser, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -78,9 +80,17 @@ export const Navbar: React.FC = () => {
         </div>
 
 
-        <div className="navbar-right">
+        <div className="navbar-right navbar-user">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm theme-toggle-btn"
+            onClick={toggleTheme}
+            title="Toggle Light / Dark Theme"
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
           {currentUser ? (
-            <div className="navbar-user">
+            <>
               <Link to="/profile" className="nav-link">
                 {currentUser.name}
               </Link>
@@ -95,7 +105,7 @@ export const Navbar: React.FC = () => {
               >
                 Logout
               </button>
-            </div>
+            </>
           ) : (
             <div className="navbar-links">
               <Link to="/login" className="nav-link">
