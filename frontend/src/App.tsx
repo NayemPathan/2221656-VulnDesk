@@ -10,6 +10,9 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ReportDetailPage } from "./pages/ReportDetailPage";
 import { ReportFormPage } from "./pages/ReportFormPage";
 import { ReportListPage } from "./pages/ReportListPage";
+import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider } from "./context/ToastContext";
+
 
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
@@ -32,12 +35,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="app-shell">
-          <Navbar />
-          <main className="main-content">
-            <Routes>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <div className="app-shell">
+              <Navbar />
+              <main className="main-content">
+                <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route
@@ -97,11 +102,11 @@ export const App: React.FC = () => {
               CSE 451)
             </span>
           </footer>
-        </div>
-      </BrowserRouter>
-    </AuthProvider>
+          </div>
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 };
-
-
 export default App;

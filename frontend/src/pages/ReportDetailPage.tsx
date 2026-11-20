@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { RoleBadge, SeverityBadge, StatusBadge } from "../components/Badges";
 import { useAuth } from "../context/AuthContext";
+import {useToast} from "../context/ToastContext";
+
 import {
   CommentItem,
   ReportRead,
@@ -38,6 +40,8 @@ const ANALYST_NEXT_STATUSES: Record<
   rejected: [],
   duplicate: [],
 };
+
+const {showToast, confirmAction} = useToast();
 
 const END_STATES: ReportStatus[] = ["closed", "rejected", "duplicate"];
 
@@ -176,10 +180,25 @@ export const ReportDetailPage: React.FC = () => {
 
   const handleDeleteReport = async () => {
     if (!report) return;
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently withdraw and delete Report #${report.id} ("${report.title}")? This action is only allowed while status is New.`
-    );
-    if (!confirmed) return;
+    const handleDeleteReport = () => {
+  if (!report) return;
+    confirmAction({
+      title: `Delete Report #${report.id}?`,
+      message: `Permanently withdraw "${report.title}"? This is only allowed while status is New.`,
+      confirmLabel: "Delete Report",
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await api.deleteReport(report.id);
+          showToast("Report deleted.", "success");
+          navigate("/");
+        } catch (err) {
+          setActionError(err instanceof ApiError ? `HTTP ${err.status}: ${err.message}` : "Failed to delete report.");
+          setDeleting(false);
+        }
+      },
+    });
+  };
 
     setDeleting(true);
     setActionError(null);
@@ -546,11 +565,22 @@ export const ReportDetailPage: React.FC = () => {
             </section>
 
             <section className="detail-section">
-              <h3 className="section-heading">
-                Steps to Reproduce (Proof of Concept)
-              </h3>
+              <div className="section-header-inline">
+                <h3 className="section-heading">Steps to Reproduce (Proof of Concept)</h3>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(report.steps_to_reproduce);
+                    showToast("PoC steps copied to clipboard!", "success");
+                  }}
+                >
+                  📋 Copy PoC
+                </button>
+              </div>
               <pre className="detail-pre">{report.steps_to_reproduce}</pre>
             </section>
+
           </div>
         )}
       </div>

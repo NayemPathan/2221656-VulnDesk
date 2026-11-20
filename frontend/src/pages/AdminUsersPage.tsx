@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import { RoleBadge } from "../components/Badges";
 import { useAuth } from "../context/AuthContext";
 import { AdminUser, UserRole } from "../types";
+import { useToast } from "../context/ToastContext";
 
 
 export const AdminUsersPage: React.FC = () => {
@@ -129,6 +130,14 @@ export const AdminUsersPage: React.FC = () => {
           <tbody>
             {users.map((u) => {
               const isSelf = u.id === currentUser?.id;
+              function confirmAction(arg0: { title: string; message: string; confirmLabel: string; onConfirm: () => Promise<void>; }): void {
+                throw new Error("Function not implemented.");
+              }
+
+              function showToast(arg0: string, arg1: string) {
+                throw new Error("Function not implemented.");
+              }
+
               return (
                 <tr key={u.id}>
                   <td>
@@ -182,12 +191,18 @@ export const AdminUsersPage: React.FC = () => {
                         type="button"
                         className="btn btn-danger btn-sm"
                         disabled={isSelf}
-                        onClick={async () => {
-                          if (window.confirm(`Soft-delete ${u.email}?`)) {
-                            await api.adminDeleteUser(u.id);
-                            await loadUsers();
-                          }
-                        }}
+                        onClick={() =>
+                          confirmAction({
+                            title: "Delete user?",
+                            message: `Soft-delete ${u.name}'s account?`,
+                            confirmLabel: "Soft-Delete User",
+                            onConfirm: async () => {
+                              await api.adminDeleteUser(u.id);
+                              await loadUsers();
+                              showToast("User soft-deleted.", "success");
+                            },
+                          })
+                        }
                       >
                         Delete
                       </button>

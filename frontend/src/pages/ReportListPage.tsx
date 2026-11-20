@@ -38,6 +38,9 @@ export const ReportListPage: React.FC = () => {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [overdueOnly, setOverdueOnly] = useState<boolean>(false);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "severity">("newest");
+
 
   const fetchReports = useCallback(async () => {
     if (!currentUser) return;
@@ -87,6 +90,58 @@ export const ReportListPage: React.FC = () => {
     setComponentFilter("");
     setPage(1);
   };
+
+  const SEV_WEIGHT: Record<Severity, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+
+const displayedReports = reports
+  .filter((r) => (overdueOnly ? Boolean(r.is_overdue) : true))
+  .slice()
+  .sort((a, b) => {
+    if (sortOrder === "oldest") {
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    if (sortOrder === "severity") {
+      const sa = SEV_WEIGHT[a.final_severity || a.proposed_severity] || 0;
+      const sb = SEV_WEIGHT[b.final_severity || b.proposed_severity] || 0;
+      return sb - sa;
+    }
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
+
+const handleExportCsv = () => {
+  const headers = ["ID", "Title", "Component", "Proposed Severity", "Final Severity", "Status", "Overdue SLA", "Created At"];
+  const escape = (val: unknown) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+  const rows = displayedReports.map((r) =>
+    [
+      r.id,
+      r.title,
+      r.component,
+      r.proposed_severity,
+      r.final_severity || "",
+      r.status,
+      r.is_overdue ? "YES" : "NO",
+      r.created_at,
+    ]
+      .map(escape)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "vulndesk_reports_export.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 
   return (
     <div className="page-container">
@@ -197,18 +252,52 @@ export const ReportListPage: React.FC = () => {
         </div>
 
         <div className="filter-actions">
-          <span className="results-counter">
-            Showing <strong>{reports.length}</strong> of{" "}
-            <strong>{total}</strong> matching report(s)
-          </span>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleResetFilters}
-          >
-            Reset Filters
-          </button>
-        </div>
+       <span className="results-counter">
+         Showing <strong>{displayedReports.length}</strong> of{" "}
+         <strong>{total}</strong> matching report(s)
+       </span>
+       <div className="owner-actions" style={{ flexWrap: "wrap" }}>
+         <label className="overdue-toggle-label">
+           <input
+             type="checkbox"
+             checked={overdueOnly}
+             onChange={(e) => setOverdueOnly(e.target.checked)}
+           />
+           <span>⏰ Overdue SLA Only</span>
+         </label>
+         <select
+           className="form-select"
+           style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}
+           value={sortOrder}
+           onChange={(e) =>
+             setSortOrder(e.target.value as "newest" | "oldest" | "severity")
+           }
+         >
+           <option value="newest">Sort: Newest</option>
+           <option value="oldest">Sort: Oldest</option>
+           <option value="severity">Sort: Highest Severity</option>
+         </select>
+         <button
+           type="button"
+           className="btn btn-secondary btn-sm"
+           onClick={handleExportCsv}
+           disabled={displayedReports.length === 0}
+         >
+           ⬇ Export CSV
+         </button>
+         <button
+           type="button"
+           className="btn btn-secondary btn-sm"
+           onClick={() => {
+             handleResetFilters();
+             setOverdueOnly(false);
+             setSortOrder("newest");
+           }}
+         >
+           Reset Filters
+         </button>
+       </div>
+     </div>
       </section>
 
       {error && (
@@ -219,7 +308,7 @@ export const ReportListPage: React.FC = () => {
 
       {loading ? (
         <div className="card loading-state">Loading vulnerability reports...</div>
-      ) : reports.length === 0 ? (
+      ) : displayedReports.length === 0 ? (
         <div className="card empty-state">
           <h3>No vulnerability reports found</h3>
           <p>
@@ -245,7 +334,7 @@ export const ReportListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {reports.map((report) => (
+              {displayedReports.map((report) => (
                 <tr key={report.id}>
                   <td>
                     <Link
