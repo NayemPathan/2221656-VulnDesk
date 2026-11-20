@@ -6,6 +6,7 @@ Implements registration, login with brute-force lockout, JWT creation/decoding,
 =====================================================================
 """
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -286,3 +287,75 @@ def change_password(
     if current_user.id is None:
         raise RuntimeError("Persisted user has no ID.")
     revoke_all_user_tokens(session, current_user.id)
+def create_password_reset_token(session: Session, email: str) -> str | None:
+    """
+    Generate a 15-minute, single-use password reset JWT.
+    Embedding a prefix of the current password hash (`pwh`) ensures the token
+    cannot be reused once the password is changed.
+    """
+    user = session.exec(
+        select(User).where(func.lower(User.email) == email.strip().lower())
+    ).first()
+    if user is None or user.is_deleted or user.is_banned:
+        return None
+
+    now = datetime.now(UTC)
+    pw_fingerprint = hashlib.sha256(
+        (user.password_hash or "").encode("utf-8")
+    ).hexdigest()[:12]
+
+    payload = {
+        "sub": str(user.id),
+        "purpose": "password_reset",
+        "pwh": pw_fingerprint,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=15)).timestamp()),
+    }
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
+
+
+def reset_password_with_token(
+    session: Session, token: str, new_password: str
+) -> None:
+    """Verify reset token, update Argon2id hash, clear lockout, and revoke sessions."""
+    payload = decode_access_token(token)
+    if payload.get("purpose") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password reset token.",
+        )
+
+    sub = payload.get("sub")
+    if not sub or not str(sub).isdigit():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password reset token.",
+        )
+
+    user = session.get(User, int(sub))
+    if user is None or user.is_deleted or user.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account is inactive or not found.",
+        )
+
+    expected_pwh = hashlib.sha256(
+        (user.password_hash or "").encode("utf-8")
+    ).hexdigest()[:12]
+    if payload.get("pwh") != expected_pwh:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset token has already been used.",
+        )
+
+    user.password_hash = hash_password(new_password)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.updated_at = datetime.now(UTC)
+    session.add(user)
+    session.commit()
+    if user.id is None:
+        raise RuntimeError("Persisted user has no ID.")
+    revoke_all_user_tokens(session, user.id)

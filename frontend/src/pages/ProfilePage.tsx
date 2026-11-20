@@ -56,7 +56,7 @@ export const ProfilePage: React.FC = () => {
         <div>
           <h1 className="page-title">Account Profile</h1>
           <p className="page-subtitle">
-            Signed in as <code>{currentUser.email}</code>
+            Signed in as <code>{currentUser.name} - {currentUser.role}</code>
           </p>
         </div>
         <RoleBadge role={currentUser.role} isBanned={currentUser.is_banned} />

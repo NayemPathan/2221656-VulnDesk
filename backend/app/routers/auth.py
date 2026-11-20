@@ -16,10 +16,12 @@ from app.deps import get_current_user
 from app.models import User
 from app.schemas.auth import (
     AuthUserRead,
+    ForgotPasswordRequest,
     LoginRequest,
     PasswordChangeRequest,
     ProfileUpdateRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
 )
 from app.services import auth_service
@@ -166,3 +168,30 @@ def change_password(
     _clear_refresh_cookie(response)
     return {"detail": "Password updated successfully. Please log in again."}
 
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    summary="Request a 15-minute single-use password reset token",
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, str | None]:
+    token = auth_service.create_password_reset_token(session, payload.email)
+    return {
+        "detail": "If an active account exists for that email, a reset token has been generated.",
+        "reset_token": token,
+    }
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    summary="Reset password using a valid reset token",
+)
+def reset_password(
+    payload: ResetPasswordRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, str]:
+    auth_service.reset_password_with_token(session, payload.token, payload.new_password)
+    return {"detail": "Password has been reset. You can now sign in."}

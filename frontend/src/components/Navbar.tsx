@@ -72,7 +72,7 @@ export const Navbar: React.FC = () => {
                       : "nav-link"
                   }
                 >
-                  Admin Users
+                  Manage Users
                 </Link>
               )}
             </nav>
@@ -92,7 +92,7 @@ export const Navbar: React.FC = () => {
           {currentUser ? (
             <>
               <Link to="/profile" className="nav-link">
-                {currentUser.name}
+                My Account
               </Link>
               <RoleBadge
                 role={currentUser.role}

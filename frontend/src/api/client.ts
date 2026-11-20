@@ -302,4 +302,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  forgotPassword: (
+    email: string
+  ): Promise<{ detail: string; reset_token: string | null }> =>
+    apiFetch<{ detail: string; reset_token: string | null }>(
+      "/api/v1/auth/forgot-password",
+      { method: "POST", body: JSON.stringify({ email }) },
+      false
+    ),
+
+  resetPassword: (
+    token: string,
+    new_password: string
+  ): Promise<{ detail: string }> =>
+    apiFetch<{ detail: string }>(
+      "/api/v1/auth/reset-password",
+      { method: "POST", body: JSON.stringify({ token, new_password }) },
+      false
+    ),
 };

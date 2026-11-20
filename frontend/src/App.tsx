@@ -2,18 +2,18 @@ import React from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider } from "./context/ToastContext";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ReportDetailPage } from "./pages/ReportDetailPage";
 import { ReportFormPage } from "./pages/ReportFormPage";
 import { ReportListPage } from "./pages/ReportListPage";
-import { ThemeProvider } from "./context/ThemeContext";
-import { ToastProvider } from "./context/ToastContext";
-
-
+import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -32,7 +32,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   return children;
 };
 
-
 export const App: React.FC = () => {
   return (
     <ThemeProvider>
@@ -43,70 +42,75 @@ export const App: React.FC = () => {
               <Navbar />
               <main className="main-content">
                 <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <ReportListPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/reports/new"
-                element={
-                  <ProtectedRoute>
-                    <ReportFormPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/reports/:reportId"
-                element={
-                  <ProtectedRoute>
-                    <ReportDetailPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/users"
-                element={
-                  <ProtectedRoute>
-                    <AdminUsersPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-          <footer className="app-footer">
-            <span>
-              VulnDesk Beta — Student ID <strong>2221656</strong> (CSE 309 &amp;
-              CSE 451)
-            </span>
-          </footer>
-          </div>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route
+                    path="/forgot-password"
+                    element={<ForgotPasswordPage />}
+                  />
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <ReportListPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports/new"
+                    element={
+                      <ProtectedRoute>
+                        <ReportFormPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/reports/:reportId"
+                    element={
+                      <ProtectedRoute>
+                        <ReportDetailPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin/users"
+                    element={
+                      <ProtectedRoute>
+                        <AdminUsersPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </main>
+              <footer className="app-footer" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+                <span>
+                  VulnDesk — Student ID <strong>2221656</strong>
+                </span>
+                <KeyboardShortcuts />
+              </footer>
+            </div>
           </BrowserRouter>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );
 };
+
 export default App;

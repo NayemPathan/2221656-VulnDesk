@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import { SeverityBadge, StatusBadge } from "../components/Badges";
 import { useAuth } from "../context/AuthContext";
 import { ReportRead, ReportStatus, Severity } from "../types";
+import { useToast } from "../context/ToastContext";
 
 const STATUS_OPTIONS: { value: ReportStatus; label: string }[] = [
   { value: "new", label: "New" },
@@ -24,6 +25,7 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
 
 export const ReportListPage: React.FC = () => {
   const { currentUser } = useAuth();
+  const {showToast, confirmAction} = useToast();
 
   const [reports, setReports] = useState<ReportRead[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -84,12 +86,41 @@ export const ReportListPage: React.FC = () => {
   if (!currentUser) return null;
 
   const handleResetFilters = () => {
-    setKeyword("");
-    setStatusFilter("");
-    setSeverityFilter("");
-    setComponentFilter("");
-    setPage(1);
+  const snapshot = {
+    keyword,
+    statusFilter,
+    severityFilter,
+    componentFilter,
+    overdueOnly,
+    sortOrder,
   };
+  setKeyword("");
+  setStatusFilter("");
+  setSeverityFilter("");
+  setComponentFilter("");
+  setOverdueOnly(false);
+  setSortOrder("newest");
+  setPage(1);
+
+
+  if (
+    snapshot.keyword ||
+    snapshot.statusFilter ||
+    snapshot.severityFilter ||
+    snapshot.componentFilter ||
+    snapshot.overdueOnly
+  ) {
+    showToast("Filters reset.", "info", () => {
+      setKeyword(snapshot.keyword);
+      setStatusFilter(snapshot.statusFilter);
+      setSeverityFilter(snapshot.severityFilter);
+      setComponentFilter(snapshot.componentFilter);
+      setOverdueOnly(snapshot.overdueOnly);
+      setSortOrder(snapshot.sortOrder);
+    });
+  }
+};
+
 
   const SEV_WEIGHT: Record<Severity, number> = {
   critical: 4,

@@ -41,13 +41,12 @@ const ANALYST_NEXT_STATUSES: Record<
   duplicate: [],
 };
 
-const {showToast, confirmAction} = useToast();
-
 const END_STATES: ReportStatus[] = ["closed", "rejected", "duplicate"];
 
 export const ReportDetailPage: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
   const { currentUser } = useAuth();
+  const {showToast, confirmAction} = useToast();
   const navigate = useNavigate();
 
   const [report, setReport] = useState<ReportRead | null>(null);
