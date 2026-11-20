@@ -1,13 +1,25 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { DashboardSummary } from "../types";
 
 
 const SEV_BAR_COLORS: Record<string, string> = {
-  critical: "#dc2626",
-  high: "#ea580c",
+  critical: "#ef4444",
+  high: "#f97316",
   medium: "#eab308",
   low: "#64748b",
+};
+
+
+const STATUS_BAR_COLORS: Record<string, string> = {
+  new: "#3b82f6",
+  under_review: "#f59e0b",
+  confirmed: "#10b981",
+  fixed: "#6366f1",
+  closed: "#22c55e",
+  rejected: "#ef4444",
+  duplicate: "#64748b",
 };
 
 
@@ -46,16 +58,32 @@ export const DashboardPage: React.FC = () => {
 
   const maxStatus = Math.max(1, ...Object.values(summary.by_status));
   const maxSeverity = Math.max(1, ...Object.values(summary.by_severity));
+  const slaHealthy = summary.overdue_reports === 0;
 
 
   return (
     <div className="page-container">
-      <div className="page-header">
+      <div className="dashboard-hero mb-3">
         <div>
-          <h1 className="page-title">Vulnerability &amp; SLA Dashboard</h1>
-          <p className="page-subtitle">
-            Role-scoped metrics for <code>{summary.role}</code>.
+          <span className="hero-eyebrow">Security Operations Overview</span>
+          <h1 className="page-title" style={{ color: "#ffffff", marginTop: "0.25rem" }}>
+            Vulnerability &amp; SLA Dashboard
+          </h1>
+          <p className="hero-subtitle">
+            Live role-scoped telemetry for <code>{summary.role}</code>.
           </p>
+        </div>
+
+
+        <div className="hero-actions">
+          <span className={slaHealthy ? "sla-pill sla-ok" : "sla-pill sla-breach"}>
+            {slaHealthy
+              ? "✓ All SLAs On Track"
+              : `⚠ ${summary.overdue_reports} Overdue SLA Report(s)`}
+          </span>
+          <Link to="/" className="btn btn-secondary btn-sm">
+            Open Queue →
+          </Link>
         </div>
       </div>
 
@@ -66,7 +94,7 @@ export const DashboardPage: React.FC = () => {
           <strong className="kpi-value">{summary.total_reports}</strong>
         </div>
         <div className="card kpi-card">
-          <span className="kpi-label">Open Reports</span>
+          <span className="kpi-label">Open Queue</span>
           <strong className="kpi-value">{summary.open_reports}</strong>
         </div>
         <div className="card kpi-card kpi-danger">
@@ -107,7 +135,7 @@ export const DashboardPage: React.FC = () => {
                     className="chart-fill"
                     style={{
                       width: `${Math.round((count / maxStatus) * 100)}%`,
-                      backgroundColor: "var(--primary)",
+                      backgroundColor: STATUS_BAR_COLORS[st] || "var(--primary)",
                     }}
                   />
                 </div>

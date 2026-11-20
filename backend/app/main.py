@@ -9,6 +9,7 @@ and registers all API routers (`health`, `auth`, `reports`, `triage`, `comments`
 """
 
 import logging
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("vulndesk.http")
+
 
 
 def create_app() -> FastAPI:
@@ -61,6 +63,26 @@ def create_app() -> FastAPI:
                     )
                 },
             )
+    @app.middleware("http")
+    async def log_requests_middleware(request: Request, call_next):
+        """
+        Cross-Cutting Logging & Performance Timing Aspect (AOP):
+        Logs every HTTP request and attaches `X-Process-Time` without
+        duplicating timing/logging code inside any router or service.
+        """
+        start = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        response.headers["X-Process-Time"] = f"{elapsed_ms}ms"
+        logger.info(
+            "%s %s -> %s (%.2fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+        return response
+
 
     try:
         from app.database import ensure_sqlite_initialized

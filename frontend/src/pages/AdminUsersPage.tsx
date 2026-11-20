@@ -1,24 +1,23 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { RoleBadge } from "../components/Badges";
+import { PasswordInput } from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
-import { AdminUser, UserRole } from "../types";
 import { useToast } from "../context/ToastContext";
-
+import { AdminUser, UserRole } from "../types";
 
 export const AdminUsersPage: React.FC = () => {
   const { currentUser } = useAuth();
+  const { showToast, confirmAction } = useToast();
+
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-
-  // Create User form state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("analyst");
-
 
   const loadUsers = useCallback(async () => {
     try {
@@ -29,11 +28,9 @@ export const AdminUsersPage: React.FC = () => {
     }
   }, []);
 
-
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
-
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,12 +47,12 @@ export const AdminUsersPage: React.FC = () => {
       setEmail("");
       setPassword("");
       setSuccess("User created.");
+      showToast("User account created.", "success");
       await loadUsers();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Create failed.");
     }
   };
-
 
   return (
     <div className="page-container">
@@ -68,10 +65,8 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
-
       {error && <div className="alert alert-danger">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
-
 
       <div className="card form-card mb-3">
         <h2 className="section-title">Create New Account</h2>
@@ -92,9 +87,8 @@ export const AdminUsersPage: React.FC = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <input
-            type="password"
-            className="form-input"
+          <PasswordInput
+            id="admin-create-pw"
             placeholder="Password (min 8)"
             required
             minLength={8}
@@ -116,7 +110,6 @@ export const AdminUsersPage: React.FC = () => {
         </form>
       </div>
 
-
       <div className="card table-card">
         <table className="reports-table">
           <thead>
@@ -130,14 +123,6 @@ export const AdminUsersPage: React.FC = () => {
           <tbody>
             {users.map((u) => {
               const isSelf = u.id === currentUser?.id;
-              function confirmAction(arg0: { title: string; message: string; confirmLabel: string; onConfirm: () => Promise<void>; }): void {
-                throw new Error("Function not implemented.");
-              }
-
-              function showToast(arg0: string, arg1: string) {
-                throw new Error("Function not implemented.");
-              }
-
               return (
                 <tr key={u.id}>
                   <td>
@@ -157,6 +142,7 @@ export const AdminUsersPage: React.FC = () => {
                             e.target.value as UserRole
                           );
                           await loadUsers();
+                          showToast(`Updated role for ${u.email}`, "success");
                         } catch (err) {
                           setError(
                             err instanceof ApiError
@@ -175,14 +161,32 @@ export const AdminUsersPage: React.FC = () => {
                     <RoleBadge role={u.role} isBanned={u.is_banned} />
                   </td>
                   <td className="text-right">
-                    <div className="owner-actions" style={{ justifyContent: "flex-end" }}>
+                    <div
+                      className="owner-actions"
+                      style={{ justifyContent: "flex-end" }}
+                    >
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
                         disabled={isSelf}
                         onClick={async () => {
-                          await api.adminSetBan(u.id, !u.is_banned);
+                          const prevBanned = u.is_banned;
+                          await api.adminSetBan(u.id, !prevBanned);
                           await loadUsers();
+                          showToast(
+                            prevBanned
+                              ? `Unbanned ${u.email}`
+                              : `Banned ${u.email}`,
+                            "info",
+                            async () => {
+                              await api.adminSetBan(u.id, prevBanned);
+                              await loadUsers();
+                              showToast(
+                                `Reverted ban status for ${u.email}`,
+                                "success"
+                              );
+                            }
+                          );
                         }}
                       >
                         {u.is_banned ? "Unban" : "Ban"}
@@ -191,18 +195,19 @@ export const AdminUsersPage: React.FC = () => {
                         type="button"
                         className="btn btn-danger btn-sm"
                         disabled={isSelf}
-                        onClick={() =>
+                        onClick={() => {
                           confirmAction({
-                            title: "Delete user?",
-                            message: `Soft-delete ${u.name}'s account?`,
+                            title: `Soft-delete ${u.email}?`,
+                            message:
+                              "This disables login and revokes active sessions while preserving historical report audit trails.",
                             confirmLabel: "Soft-Delete User",
                             onConfirm: async () => {
                               await api.adminDeleteUser(u.id);
                               await loadUsers();
-                              showToast("User soft-deleted.", "success");
+                              showToast(`Soft-deleted ${u.email}`, "success");
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         Delete
                       </button>

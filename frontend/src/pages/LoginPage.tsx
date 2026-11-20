@@ -1,19 +1,17 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
+import { PasswordInput } from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
-
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,13 +31,11 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-
   const fillCredentials = (presetEmail: string, presetPass: string) => {
     setEmail(presetEmail);
     setPassword(presetPass);
     setError(null);
   };
-
 
   return (
     <div className="page-container auth-container">
@@ -50,13 +46,11 @@ export const LoginPage: React.FC = () => {
           and rotating session cookie.
         </p>
 
-
         {error && (
           <div className="alert alert-danger mt-3" role="alert">
             {error}
           </div>
         )}
-
 
         <form onSubmit={handleSubmit} className="vuln-form mt-3">
           <div className="form-group">
@@ -66,25 +60,21 @@ export const LoginPage: React.FC = () => {
               type="email"
               className="form-input"
               required
-              placeholder="tutor@vulndesk.local"
+              placeholder="role@vulndesk.local"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
-
           <div className="form-group">
             <label htmlFor="login-password">Password</label>
-            <input
+            <PasswordInput
               id="login-password"
-              type="password"
-              className="form-input"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-
 
           <button
             type="submit"
@@ -95,11 +85,15 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-
-        <p className="mt-3 field-hint">
-          New Researcher? <Link to="/register">Create an account</Link>
-        </p>
-
+        <div
+          className="mt-3 field-hint"
+          style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}
+        >
+          <span>
+            New Researcher? <Link to="/register">Create an account</Link>
+          </span>
+          <Link to="/forgot-password">Forgot password?</Link>
+        </div>
 
         <div className="credentials-box mt-4">
           <h3 className="section-heading">Evaluator &amp; Demo Accounts</h3>
