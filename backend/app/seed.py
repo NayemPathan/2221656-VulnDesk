@@ -18,6 +18,8 @@ from sqlmodel import Session, select
 from app.database import create_db_and_tables, engine
 from app.models import (
     Comment,
+    Group,
+    GroupMember,
     Report,
     ReportStatus,
     Severity,
@@ -133,12 +135,43 @@ def seed_database(session: Session) -> dict:
         password_hash=tutor_hash,
         is_banned=False,
     )
-
     session.add_all([alice, bob, mallory, charlie, admin, tutor])
     session.flush()
     assert alice.id is not None
     assert bob.id is not None
     assert charlie.id is not None
+
+    triage_group = session.exec(
+        select(Group).where(Group.name == "Web Security Triage Team")
+    ).first()
+    if triage_group is None:
+        triage_group = Group(
+            name="Web Security Triage Team",
+            description="Shared triage workspace for web vulnerabilities with mixed member permissions.",
+            owner_id=alice.id,
+        )
+        session.add(triage_group)
+        session.flush()
+        assert triage_group.id is not None
+
+        session.add_all(
+            [
+                GroupMember(
+                    group_id=triage_group.id,
+                    user_id=bob.id,
+                    can_create=True,
+                    can_edit=False,
+                    can_assign=False,
+                ),
+                GroupMember(
+                    group_id=triage_group.id,
+                    user_id=charlie.id,
+                    can_create=False,
+                    can_edit=True,
+                    can_assign=True,
+                ),
+            ]
+        )
 
     # -----------------------------------------------------------------
     # STEP 2: Create 4 Sample Vulnerability Reports across statuses

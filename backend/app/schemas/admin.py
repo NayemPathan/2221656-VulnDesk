@@ -1,7 +1,7 @@
 """
-Admin User Governance Pydantic Schemas (backend/app/schemas/admin.py)
+Admin User Governance & Moderation Pydantic Schemas (backend/app/schemas/admin.py)
 =====================================================================
-Request and response schemas for /api/v1/admin/users endpoints.
+Request and response schemas for /api/v1/admin endpoints.
 =====================================================================
 """
 
@@ -22,6 +22,7 @@ class AdminUserRead(BaseModel):
     email: str
     role: UserRole
     is_banned: bool
+    ban_reason: str | None = None
     is_deleted: bool
     failed_login_attempts: int
     locked_until: datetime | None = None
@@ -63,3 +64,36 @@ class AdminBanUpdate(BaseModel):
     """Payload for PATCH /api/v1/admin/users/{user_id}/ban."""
 
     is_banned: bool
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AdminOverview(BaseModel):
+    """Overview KPIs for the Admin Dashboard."""
+
+    total_users: int
+    banned_users: int
+    total_reports: int
+    total_groups: int
+    new_users_7d: int
+    new_reports_7d: int
+
+
+class BulkUserActionRequest(BaseModel):
+    """Payload for bulk ban / unban."""
+
+    user_ids: list[int]
+    reason: str | None = Field(default="Bulk moderation action", max_length=500)
+
+
+class BulkReportDeleteRequest(BaseModel):
+    """Payload for bulk deleting reports."""
+
+    report_ids: list[int]
+
+
+class BulkActionResult(BaseModel):
+    """Summary returned by bulk admin actions."""
+
+    affected: int
+    skipped: int
+    skipped_ids: list[int] = []
