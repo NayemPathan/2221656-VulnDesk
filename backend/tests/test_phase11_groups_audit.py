@@ -32,9 +32,14 @@ def test_profile_update_and_session_revoke():
     assert sess_res.status_code == 200
     sessions = sess_res.json()
     assert len(sessions) >= 1
+    current_session = next(s for s in sessions if s["is_current"])
 
-    del_res = client.delete(f"/api/v1/auth/sessions/{sessions[0]['id']}", headers=headers)
+    del_res = client.delete(
+        f"/api/v1/auth/sessions/{current_session['id']}",
+        headers=headers,
+    )
     assert del_res.status_code == 204
+    assert "Max-Age=0" in del_res.headers.get("set-cookie", "")
 
 
 def test_group_permissions_and_owner_only_rules():
@@ -96,10 +101,18 @@ def test_admin_safety_rules_and_audit_log():
     )
     assert ban_other_admin.status_code == 403
 
-    # Audit log & Security view work
-    audit = client.get("/api/v1/admin/audit-logs", headers=headers)
+    # Audit log target labels & Security view work
+    group = client.post(
+        "/api/v1/groups",
+        json={"name": "Audit Target Group"},
+        headers=headers,
+    )
+    assert group.status_code == 201
+
+    audit = client.get("/api/v1/admin/audit-logs?action=group_create", headers=headers)
     assert audit.status_code == 200
     assert "items" in audit.json()
+    assert audit.json()["items"][0]["target_label"] == "Audit Target Group"
 
     sec = client.get("/api/v1/admin/security", headers=headers)
     assert sec.status_code == 200

@@ -40,19 +40,28 @@ export const AdminUsersPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkBanReason, setBulkBanReason] = useState("");
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("");
+  const [status, setStatus] = useState("");
 
   const [moderationReports, setModerationReports] = useState<ReportRead[]>([]);
   const [selectedReportIds, setSelectedReportIds] = useState<number[]>([]);
   const [moderationGroups, setModerationGroups] = useState<GroupItem[]>([]);
   const [moderationPage, setModerationPage] = useState(1);
+  const [moderationPageSize, setModerationPageSize] = useState(15);
   const [moderationTotal, setModerationTotal] = useState(0);
   const [moderationLoading, setModerationLoading] = useState(false);
+  const [reportQ, setReportQ] = useState("");
+  const [reportQInput, setReportQInput] = useState("");
+  const [severity, setSeverity] = useState("");
+  const [severityInput, setSeverityInput] = useState("");
+  const [reportStatus, setReportStatus] = useState("");
+  const [reportStatusInput, setReportStatusInput] = useState("");
 
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditPage, setAuditPage] = useState(1);
   const [auditAction, setAuditAction] = useState("");
-  const [auditActionInput, setAuditActionInput] = useState("");
   const [auditSearchInput, setAuditSearchInput] = useState("");
   const [auditSearch, setAuditSearch] = useState("");
   const [auditLoading, setAuditLoading] = useState(false);
@@ -63,7 +72,7 @@ export const AdminUsersPage: React.FC = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("analyst");
+  const [newUserRole, setNewUserRole] = useState<UserRole>("analyst");
 
   const loadUsers = useCallback(async () => {
     try {
@@ -93,11 +102,17 @@ export const AdminUsersPage: React.FC = () => {
     setModerationLoading(true);
     try {
       const [reportPage, groups] = await Promise.all([
-        listAdminReports({ page: moderationPage }),
+        listAdminReports({
+          q: reportQ || undefined,
+          severity: severity || undefined,
+          status: reportStatus || undefined,
+          page: moderationPage,
+        }),
         listAdminGroups(),
       ]);
       setModerationReports(reportPage.items);
       setModerationTotal(reportPage.total);
+      setModerationPageSize(reportPage.page_size);
       setModerationGroups(groups);
     } catch (err) {
       showToast(
@@ -107,7 +122,7 @@ export const AdminUsersPage: React.FC = () => {
     } finally {
       setModerationLoading(false);
     }
-  }, [moderationPage, showToast]);
+  }, [moderationPage, reportQ, reportStatus, severity, showToast]);
 
   useEffect(() => {
     if (activeTab === "moderation") void loadModeration();
@@ -155,18 +170,34 @@ export const AdminUsersPage: React.FC = () => {
     if (activeTab === "security" && !securityView) void loadSecurityView();
   }, [activeTab, loadSecurityView, securityView]);
 
-  const handleBulkUserAction = async (ban: boolean) => {
-    if (selectedUserIds.length === 0) return;
+  const handleBulkBan = async (userIds: number[]) => {
+    if (userIds.length === 0) return;
     try {
-      const result = ban
-        ? await bulkBanUsers(selectedUserIds, bulkBanReason.trim())
-        : await bulkUnbanUsers(selectedUserIds);
+      const result = await bulkBanUsers(userIds, bulkBanReason.trim());
       showToast(
-        `${ban ? "Ban" : "Unban"} completed: ${result.affected} affected, ${result.skipped} skipped.`,
+        `Ban completed: ${result.affected} affected, ${result.skipped} skipped.`,
         "success"
       );
       setSelectedUserIds([]);
       setBulkBanReason("");
+      await loadUsers();
+    } catch (err) {
+      showToast(
+        err instanceof ApiError ? err.message : "Bulk user action failed.",
+        "error"
+      );
+    }
+  };
+
+  const handleBulkUnban = async (userIds: number[]) => {
+    if (userIds.length === 0) return;
+    try {
+      const result = await bulkUnbanUsers(userIds);
+      showToast(
+        `Unban completed: ${result.affected} affected, ${result.skipped} skipped.`,
+        "success"
+      );
+      setSelectedUserIds([]);
       await loadUsers();
     } catch (err) {
       showToast(
@@ -201,15 +232,15 @@ export const AdminUsersPage: React.FC = () => {
     });
   };
 
-  const handleAdminDeleteGroup = (group: GroupItem) => {
+  const handleAdminDeleteGroup = (groupId: number, groupName: string) => {
     confirmAction({
-      title: `Delete "${group.name}"?`,
+      title: `Delete "${groupName}"?`,
       message: "This removes the group and its memberships.",
       confirmLabel: "Delete Group",
       onConfirm: async () => {
         try {
-          await adminDeleteGroup(group.id);
-          showToast(`Deleted group "${group.name}".`, "success");
+          await adminDeleteGroup(groupId);
+          showToast(`Deleted group "${groupName}".`, "success");
           await loadModeration();
         } catch (err) {
           showToast(
@@ -244,7 +275,7 @@ export const AdminUsersPage: React.FC = () => {
         name: name.trim(),
         email: email.trim(),
         password,
-        role,
+        role: newUserRole,
       });
       setName("");
       setEmail("");
@@ -256,13 +287,33 @@ export const AdminUsersPage: React.FC = () => {
       setError(err instanceof ApiError ? err.message : "Create failed.");
     }
   };
+  const normalizedUserQuery = q.trim().toLowerCase();
+  const filteredUsers = users.filter((user) => {
+    const matchesQuery =
+      !normalizedUserQuery ||
+      user.name.toLowerCase().includes(normalizedUserQuery) ||
+      user.email.toLowerCase().includes(normalizedUserQuery);
+    const matchesRole = !role || user.role === role;
+    const matchesStatus =
+      !status || (status === "banned" ? user.is_banned : !user.is_banned);
+    return matchesQuery && matchesRole && matchesStatus;
+  });
+  const selectedUserObjects = users.filter((u) => selectedUserIds.includes(u.id));
+  const eligibleToBanIds = selectedUserObjects
+    .filter((u) => !u.is_banned && u.role !== "admin" && u.id !== currentUser?.id)
+    .map((u) => u.id);
+  const eligibleToUnbanIds = selectedUserObjects
+    .filter((u) => u.is_banned && u.role !== "admin" && u.id !== currentUser?.id)
+    .map((u) => u.id);
+
 
   return (
     <div className="page-container">
-      <div className="page-header">
+      <div className="page-hero">
         <div>
-          <h1 className="page-title">Admin User Governance</h1>
-          <p className="page-subtitle">
+          <span className="page-hero-eyebrow">Admin Console</span>
+          <h1>Admin User Governance</h1>
+          <p>
             Platform users, moderation, audit activity, and security signals.
           </p>
         </div>
@@ -289,11 +340,7 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       )}
 
-      <div
-        className="owner-actions mb-3"
-        role="tablist"
-        aria-label="Admin sections"
-      >
+      <div className="tab-bar" role="tablist" aria-label="Admin sections">
         {(
           [
             ["users", "Users"],
@@ -307,9 +354,7 @@ export const AdminUsersPage: React.FC = () => {
             type="button"
             role="tab"
             aria-selected={activeTab === tab}
-            className={`btn btn-sm ${
-              activeTab === tab ? "btn-primary" : "btn-secondary"
-            }`}
+            className={tab === activeTab ? "tab-btn active" : "tab-btn"}
             onClick={() => setActiveTab(tab)}
           >
             {label}
@@ -348,8 +393,8 @@ export const AdminUsersPage: React.FC = () => {
               />
               <select
                 className="form-select"
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as UserRole)}
               >
                 <option value="researcher">Researcher</option>
                 <option value="analyst">Analyst</option>
@@ -362,19 +407,85 @@ export const AdminUsersPage: React.FC = () => {
           </div>
 
           <div className="card table-card">
-            <div className="page-header">
-              <h2 className="section-title">Platform Users</h2>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleCsvDownload("users", {})}
+            <h2 className="section-title">Platform Users</h2>
+            <div className="filter-grid mb-3">
+              <input
+                className="form-input"
+                placeholder="Search name or email"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              <select
+                className="form-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                aria-label="Filter users by role"
               >
-                Export CSV
-              </button>
+                <option value="">All roles</option>
+                <option value="researcher">Researcher</option>
+                <option value="analyst">Analyst</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select
+                className="form-select"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                aria-label="Filter users by status"
+              >
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="banned">Banned</option>
+              </select>
             </div>
-            <table className="reports-table">
+            <div className="bulk-bar">
+              <span className="muted">
+                <strong>{selectedUserIds.length}</strong> user(s) selected
+              </span>
+              <div className="bulk-bar-actions">
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  disabled={eligibleToBanIds.length === 0}
+                  onClick={() => void handleBulkBan(eligibleToBanIds)}
+                >
+                  Ban Selected ({eligibleToBanIds.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={eligibleToUnbanIds.length === 0}
+                  onClick={() => void handleBulkUnban(eligibleToUnbanIds)}
+                >
+                  Unban Selected ({eligibleToUnbanIds.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    void handleCsvDownload("users", {
+                      q: q || undefined,
+                      role: role || undefined,
+                      status: status || undefined,
+                    })
+                  }
+                >
+                  Export Users CSV
+                </button>
+              </div>
+            </div>
+            <div className="filter-grid mb-3">
+              <input
+                className="form-input"
+                placeholder="Reason for bulk ban"
+                value={bulkBanReason}
+                onChange={(e) => setBulkBanReason(e.target.value)}
+              />
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
               <thead>
                 <tr>
+                  <th>Select</th>
                   <th>User</th>
                   <th>Role</th>
                   <th>Status</th>
@@ -382,10 +493,27 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => {
+                {filteredUsers.map((u) => {
                   const isSelf = u.id === currentUser?.id;
+                  const cannotBulkModerate =
+                    isSelf || u.role === "admin";
                   return (
                     <tr key={u.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${u.email}`}
+                          disabled={cannotBulkModerate}
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={(e) =>
+                            setSelectedUserIds((current) =>
+                              e.target.checked
+                                ? [...current, u.id]
+                                : current.filter((id) => id !== u.id)
+                            )
+                          }
+                        />
+                      </td>
                       <td>
                         <strong>{u.name}</strong>
                         <div className="field-hint">{u.email}</div>
@@ -499,7 +627,8 @@ export const AdminUsersPage: React.FC = () => {
                   );
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </>
       )}
@@ -507,110 +636,80 @@ export const AdminUsersPage: React.FC = () => {
       {activeTab === "moderation" && (
         <div className="vuln-form">
           <section className="card form-card">
-            <div className="page-header">
-              <div>
-                <h2 className="section-title">Bulk User Moderation</h2>
-                <p className="page-subtitle">
-                  Administrators and your own account cannot be selected.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleCsvDownload("users", {})}
-              >
-                Export Users
-              </button>
-            </div>
-            <div className="filter-grid mb-3">
+            <h2 className="section-title">Report Moderation</h2>
+            <form
+              className="filter-grid mb-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setModerationPage(1);
+                setReportQ(reportQInput.trim());
+                setSeverity(severityInput);
+                setReportStatus(reportStatusInput);
+                setSelectedReportIds([]);
+              }}
+            >
               <input
                 className="form-input"
-                placeholder="Ban reason"
-                value={bulkBanReason}
-                onChange={(e) => setBulkBanReason(e.target.value)}
+                placeholder="Search reports"
+                value={reportQInput}
+                onChange={(e) => setReportQInput(e.target.value)}
               />
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
-                disabled={!selectedUserIds.length}
-                onClick={() => void handleBulkUserAction(true)}
+              <select
+                className="form-select"
+                value={severityInput}
+                onChange={(e) => setSeverityInput(e.target.value)}
+                aria-label="Filter reports by severity"
               >
-                Ban Selected ({selectedUserIds.length})
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={!selectedUserIds.length}
-                onClick={() => void handleBulkUserAction(false)}
+                <option value="">All severities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+              <select
+                className="form-select"
+                value={reportStatusInput}
+                onChange={(e) => setReportStatusInput(e.target.value)}
+                aria-label="Filter reports by status"
               >
-                Unban Selected
+                <option value="">All statuses</option>
+                <option value="new">New</option>
+                <option value="under_review">Under Review</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="fixed">Fixed</option>
+                <option value="closed">Closed</option>
+                <option value="rejected">Rejected</option>
+                <option value="duplicate">Duplicate</option>
+              </select>
+              <button type="submit" className="btn btn-primary btn-sm">
+                Apply Filters
               </button>
-            </div>
-            <div className="table-card">
-              <table className="reports-table">
-                <thead>
-                  <tr>
-                    <th>Select</th>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Ban Reason</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => {
-                    const disabled =
-                      user.id === currentUser?.id || user.role === "admin";
-                    return (
-                      <tr key={user.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            aria-label={`Select ${user.email}`}
-                            disabled={disabled}
-                            checked={selectedUserIds.includes(user.id)}
-                            onChange={(e) =>
-                              setSelectedUserIds((current) =>
-                                e.target.checked
-                                  ? [...current, user.id]
-                                  : current.filter((id) => id !== user.id)
-                              )
-                            }
-                          />
-                        </td>
-                        <td>
-                          {user.name}
-                          <div className="field-hint">{user.email}</div>
-                        </td>
-                        <td>{user.role}</td>
-                        <td>{user.is_banned ? "Banned" : "Active"}</td>
-                        <td>{user.ban_reason || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="card form-card">
-            <div className="page-header">
-              <h2 className="section-title">Report Moderation</h2>
-              <div className="owner-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleCsvDownload("reports", {})}
-                >
-                  Export Reports
-                </button>
+            </form>
+            <div className="bulk-bar">
+              <span className="muted">
+                <strong>{selectedReportIds.length}</strong> report(s) selected
+              </span>
+              <div className="bulk-bar-actions">
                 <button
                   type="button"
                   className="btn btn-danger btn-sm"
-                  disabled={!selectedReportIds.length}
+                  disabled={selectedReportIds.length === 0}
                   onClick={handleBulkDeleteReports}
                 >
                   Delete Selected ({selectedReportIds.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    void handleCsvDownload("reports", {
+                      q: reportQ || undefined,
+                      severity: severity || undefined,
+                      status: reportStatus || undefined,
+                    })
+                  }
+                >
+                  Export Reports CSV
                 </button>
               </div>
             </div>
@@ -618,8 +717,8 @@ export const AdminUsersPage: React.FC = () => {
               <p className="muted">Loading moderation data...</p>
             ) : (
               <>
-                <div className="table-card">
-                  <table className="reports-table">
+                <div className="table-wrap">
+                  <table className="data-table">
                     <thead>
                       <tr>
                         <th>Select</th>
@@ -673,7 +772,9 @@ export const AdminUsersPage: React.FC = () => {
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    disabled={moderationPage * 15 >= moderationTotal}
+                    disabled={
+                      moderationPage * moderationPageSize >= moderationTotal
+                    }
                     onClick={() => setModerationPage((page) => page + 1)}
                   >
                     Next
@@ -683,44 +784,78 @@ export const AdminUsersPage: React.FC = () => {
             )}
           </section>
 
-          <section className="card form-card">
-            <h2 className="section-title">Group Moderation</h2>
-            {moderationGroups.length === 0 ? (
-              <p className="muted">No groups found.</p>
-            ) : (
-              <div className="table-card">
-                <table className="reports-table">
-                  <thead>
-                    <tr>
-                      <th>Group</th>
-                      <th>Owner</th>
-                      <th>Members</th>
-                      <th>Created</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {moderationGroups.map((group) => (
-                      <tr key={group.id}>
-                        <td>{group.name}</td>
-                        <td>{group.owner_email}</td>
-                        <td>{group.members?.length ?? 0}</td>
-                        <td>{new Date(group.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleAdminDeleteGroup(group)}
+          <section className="card" style={{ marginTop: "1.25rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                Shared Groups Moderation ({moderationGroups.length})
+              </h3>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Group Name</th>
+                    <th>Owner</th>
+                    <th>Members</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {moderationGroups.map((group) => (
+                    <tr key={group.id}>
+                      <td>#{group.id}</td>
+                      <td>
+                        <strong>{group.name}</strong>
+                        {group.description && (
+                          <div
+                            className="muted"
+                            style={{ fontSize: "0.8rem" }}
                           >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                            {group.description}
+                          </div>
+                        )}
+                      </td>
+                      <td>{group.owner_email ?? `User #${group.owner_id}`}</td>
+                      <td>
+                        <span className="perm-pill on">
+                          {group.members?.length ?? 0} member(s)
+                        </span>
+                      </td>
+                      <td>
+                        {new Date(group.created_at).toLocaleDateString()}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={() =>
+                            handleAdminDeleteGroup(group.id, group.name)
+                          }
+                        >
+                          Delete Group
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {moderationGroups.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        No shared groups found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       )}
@@ -750,16 +885,33 @@ export const AdminUsersPage: React.FC = () => {
             onSubmit={(e) => {
               e.preventDefault();
               setAuditPage(1);
-              setAuditAction(auditActionInput.trim());
               setAuditSearch(auditSearchInput.trim());
             }}
           >
-            <input
-              className="form-input"
-              placeholder="Filter by action"
-              value={auditActionInput}
-              onChange={(e) => setAuditActionInput(e.target.value)}
-            />
+            <select
+              value={auditAction}
+              onChange={(e) => {
+                setAuditAction(e.target.value);
+                setAuditPage(1);
+              }}
+              className="form-select filter-select"
+              aria-label="Filter audit logs by action"
+            >
+              <option value="">All Actions</option>
+              <option value="login">Login</option>
+              <option value="failed_login">Failed Login</option>
+              <option value="logout">Logout</option>
+              <option value="profile_update">Profile Update</option>
+              <option value="password_change">Password Change</option>
+              <option value="session_revoke">Session Revoke</option>
+              <option value="role_change">Role Change</option>
+              <option value="ban">Ban User</option>
+              <option value="unban">Unban User</option>
+              <option value="delete">Delete (User / Report)</option>
+              <option value="group_create">Group Create</option>
+              <option value="group_delete">Group Delete</option>
+              <option value="export">CSV Export</option>
+            </select>
             <input
               className="form-input"
               placeholder="Search email or details"
@@ -773,8 +925,8 @@ export const AdminUsersPage: React.FC = () => {
           {auditLoading ? (
             <p className="muted">Loading audit logs...</p>
           ) : (
-            <div className="table-card">
-              <table className="reports-table">
+            <div className="table-wrap">
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>When</th>
@@ -792,8 +944,28 @@ export const AdminUsersPage: React.FC = () => {
                       <td>{entry.actor_email}</td>
                       <td>{entry.action}</td>
                       <td>
-                        {entry.target_type || "—"}
-                        {entry.target_id ? ` #${entry.target_id}` : ""}
+                        {entry.target_type ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.4rem",
+                            }}
+                          >
+                            <span
+                              className="perm-pill off"
+                              style={{ textTransform: "capitalize" }}
+                            >
+                              {entry.target_type}
+                            </span>
+                            <span>
+                              {entry.target_label ||
+                                (entry.target_id ? `#${entry.target_id}` : "—")}
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td>{entry.details || "—"}</td>
                       <td>{entry.ip_address || "unknown"}</td>
@@ -871,7 +1043,8 @@ export const AdminUsersPage: React.FC = () => {
                   {securityView.failed_by_ip.length === 0 ? (
                     <p className="muted">No failed logins recorded.</p>
                   ) : (
-                    <table className="reports-table">
+                    <div className="table-wrap">
+                      <table className="data-table">
                       <thead>
                         <tr><th>IP Address</th><th>Failures</th></tr>
                       </thead>
@@ -883,7 +1056,8 @@ export const AdminUsersPage: React.FC = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                      </table>
+                    </div>
                   )}
                 </div>
                 <div className="card">
@@ -891,7 +1065,8 @@ export const AdminUsersPage: React.FC = () => {
                   {securityView.failed_by_account.length === 0 ? (
                     <p className="muted">No failed logins recorded.</p>
                   ) : (
-                    <table className="reports-table">
+                    <div className="table-wrap">
+                      <table className="data-table">
                       <thead>
                         <tr><th>Account</th><th>Failures</th></tr>
                       </thead>
@@ -903,13 +1078,14 @@ export const AdminUsersPage: React.FC = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>
               <h3 className="section-title mt-3">Recent Failed Logins</h3>
-              <div className="table-card">
-                <table className="reports-table">
+              <div className="table-wrap">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>When</th>

@@ -231,10 +231,12 @@ def update_me(
     summary="List active refresh sessions for the current user",
 )
 def list_my_sessions(
+    refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> list[RefreshToken]:
+) -> list[SessionRead]:
     now = datetime.now(UTC)
+    current_hash = hash_token(refresh_cookie) if refresh_cookie else None
     stmt = (
         select(RefreshToken)
         .where(
@@ -244,7 +246,22 @@ def list_my_sessions(
         )
         .order_by(col(RefreshToken.created_at).desc())
     )
-    return list(session.exec(stmt).all())
+    rows = session.exec(stmt).all()
+    sessions: list[SessionRead] = []
+    for row in rows:
+        if row.id is None:
+            raise RuntimeError("Persisted refresh token has no ID.")
+        sessions.append(
+            SessionRead(
+                id=row.id,
+                ip_address=row.ip_address,
+                user_agent=row.user_agent,
+                created_at=row.created_at,
+                expires_at=row.expires_at,
+                is_current=current_hash is not None and row.token_hash == current_hash,
+            )
+        )
+    return sessions
 
 
 @router.delete(
@@ -255,12 +272,17 @@ def list_my_sessions(
 def revoke_my_session(
     session_id: int,
     request: Request,
+    response: Response,
+    refresh_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Response:
     token_row = session.get(RefreshToken, session_id)
     if not token_row or token_row.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    if refresh_cookie and token_row.token_hash == hash_token(refresh_cookie):
+        _clear_refresh_cookie(response)
 
     if token_row.revoked_at is None:
         token_row.revoked_at = datetime.now(UTC)
@@ -277,7 +299,8 @@ def revoke_my_session(
         details="User revoked session",
         request=request,
     )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.post(

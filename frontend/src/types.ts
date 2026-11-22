@@ -168,6 +168,7 @@ export interface SessionItem {
   user_agent: string | null;
   created_at: string;
   expires_at: string;
+  is_current?: boolean;
 }
 
 export interface GroupMember {
@@ -206,6 +207,7 @@ export interface AuditLogItem {
   action: string;
   target_type: string | null;
   target_id: number | null;
+  target_label?: string | null;
   details: string | null;
   ip_address: string | null;
   user_agent: string | null;

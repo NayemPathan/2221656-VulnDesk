@@ -111,3 +111,4 @@ class SessionRead(BaseModel):
     user_agent: str | None = None
     created_at: datetime
     expires_at: datetime
+    is_current: bool = False

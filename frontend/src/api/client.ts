@@ -159,6 +159,7 @@ export interface ListReportsParams {
   status?: string;
   severity?: string;
   component?: string;
+  group_id?: number;
   page?: number;
   page_size?: number;
 }
@@ -248,6 +249,8 @@ export const api = {
     if (params.severity) search.set("severity", params.severity);
     if (params.component?.trim())
       search.set("component", params.component.trim());
+    if (params.group_id !== undefined)
+      search.set("group_id", String(params.group_id));
     search.set("page", String(params.page ?? 1));
     search.set("page_size", String(params.page_size ?? 10));
     return apiFetch<ReportListResponse>(`/api/v1/reports?${search.toString()}`);
@@ -545,3 +548,7 @@ export async function downloadAdminCsv(
   URL.revokeObjectURL(url);
 }
 
+export const listGroupCandidateUsers = () =>
+  apiFetch<{ id: number; name: string; email: string; role: string }[]>(
+    `${API_BASE_URL}/groups/users-directory`
+  );

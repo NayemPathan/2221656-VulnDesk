@@ -80,10 +80,16 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleRevokeSession = async (id: number) => {
-    setRevokingSessionId(id);
+  const handleRevokeSession = async (session: SessionItem) => {
+    setRevokingSessionId(session.id);
     try {
-      await revokeMySession(id);
+      await revokeMySession(session.id);
+      if (session.is_current) {
+        showToast("Current session revoked. Signed out.", "info");
+        await logout();
+        navigate("/login");
+        return;
+      }
       showToast("Session revoked", "success");
       await loadSessions();
     } catch (err) {
@@ -99,10 +105,11 @@ export const ProfilePage: React.FC = () => {
 
   return (
     <div className="page-container narrow-container">
-      <div className="page-header">
+      <div className="page-hero">
         <div>
-          <h1 className="page-title">Account Profile</h1>
-          <p className="page-subtitle">
+          <span className="page-hero-eyebrow">Account</span>
+          <h1>Account Profile</h1>
+          <p>
             Signed in as <code>{currentUser.name} - {currentUser.role}</code>
           </p>
         </div>
@@ -196,7 +203,12 @@ export const ProfilePage: React.FC = () => {
             <tbody>
               {sessions.map((session) => (
                 <tr key={session.id}>
-                  <td>#{session.id}</td>
+                  <td>
+                    #{session.id}{" "}
+                    {session.is_current && (
+                      <span className="perm-pill on">Current</span>
+                    )}
+                  </td>
                   <td>{session.ip_address || "unknown"}</td>
                   <td
                     style={{
@@ -213,7 +225,7 @@ export const ProfilePage: React.FC = () => {
                       type="button"
                       className="btn btn-danger btn-sm"
                       disabled={revokingSessionId === session.id}
-                      onClick={() => handleRevokeSession(session.id)}
+                      onClick={() => handleRevokeSession(session)}
                     >
                       {revokingSessionId === session.id
                         ? "Revoking..."

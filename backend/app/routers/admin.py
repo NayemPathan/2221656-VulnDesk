@@ -17,10 +17,12 @@ from app.database import get_session
 from app.deps import require_scopes
 from app.models import (
     AuditLog,
+    Comment,
     Group,
     GroupMember,
     RefreshToken,
     Report,
+    StatusHistory,
     User,
     UserRole,
 )
@@ -367,7 +369,7 @@ def admin_list_groups(
     session: Session = Depends(get_session),
     _current_admin: User = Depends(require_admin_users),
 ):
-    groups = session.exec(select(Group).order_by(Group.created_at.desc())).all()
+    groups = session.exec(select(Group).order_by(col(Group.created_at).desc())).all()
     return [_build_group_read(session, g) for g in groups]
 
 
@@ -457,43 +459,6 @@ def admin_list_reports(
     return {"items": rows[start : start + page_size], "total": total, "page": page, "page_size": page_size}
 
 
-@router.post("/reports/bulk-delete", response_model=BulkActionResult, summary="Bulk delete reports")
-def bulk_delete_reports(
-    payload: BulkReportDeleteRequest,
-    request: Request,
-    session: Session = Depends(get_session),
-    current_admin: User = Depends(require_admin_users),
-) -> BulkActionResult:
-    affected = 0
-    skipped_ids: list[int] = []
-    for rid in payload.report_ids:
-        r = session.get(Report, rid)
-        if not r:
-            skipped_ids.append(rid)
-            continue
-        session.delete(r)
-        affected += 1
-    session.commit()
-    log_event(
-        session,
-        user_id=current_admin.id,
-        actor_email=current_admin.email,
-        action="delete",
-        target_type="report",
-        details=f"Bulk deleted {affected} report(s), skipped={len(skipped_ids)}",
-        request=request,
-    )
-    return BulkActionResult(affected=affected, skipped=len(skipped_ids), skipped_ids=skipped_ids)
-
-
-@router.get("/groups", summary="Admin content moderation: list all groups")
-def admin_list_groups(
-    session: Session = Depends(get_session),
-    _current_admin: User = Depends(require_admin_users),
-):
-    return session.exec(select(Group).order_by(col(Group.created_at).desc())).all()
-
-
 @router.delete("/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Admin delete group")
 def admin_delete_group(
     group_id: int,
@@ -542,7 +507,32 @@ def list_audit_logs(
     logs = session.exec(stmt.order_by(col(AuditLog.created_at).desc())).all()
     total = len(logs)
     start = (page - 1) * page_size
-    return {"items": logs[start : start + page_size], "total": total, "page": page, "page_size": page_size}
+    page_logs = logs[start : start + page_size]
+
+    # Resolve human-readable target labels (email, group name, report title)
+    user_map = {u.id: u.email for u in session.exec(select(User)).all()}
+    group_map = {g.id: g.name for g in session.exec(select(Group)).all()}
+    report_map = {r.id: r.title for r in session.exec(select(Report)).all()}
+
+    enriched = []
+    for l in page_logs:
+        item = l.model_dump()
+        label = None
+        if l.target_id is not None:
+            if l.target_type == "user":
+                label = user_map.get(l.target_id, f"User #{l.target_id}")
+            elif l.target_type == "group":
+                label = group_map.get(l.target_id, f"Group #{l.target_id}")
+            elif l.target_type == "report":
+                label = report_map.get(l.target_id, f"Report #{l.target_id}")
+            elif l.target_type == "session":
+                label = f"Session #{l.target_id}"
+        elif l.target_type == "export":
+            label = "CSV Export"
+        item["target_label"] = label
+        enriched.append(item)
+
+    return {"items": enriched, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/security", summary="Security view: failed logins by IP and by account")
@@ -694,3 +684,40 @@ def export_audit_logs_csv(
         ["ID", "Actor Email", "Action", "Target Type", "Target ID", "IP Address", "Details", "Created At"],
         rows,
     )
+    
+@router.post("/reports/bulk-delete", response_model=BulkActionResult, summary="Bulk delete reports")
+def bulk_delete_reports(
+    payload: BulkReportDeleteRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+    current_admin: User = Depends(require_admin_users),
+) -> BulkActionResult:
+    affected = 0
+    skipped_ids: list[int] = []
+    for rid in payload.report_ids:
+        r = session.get(Report, rid)
+        if not r:
+            skipped_ids.append(rid)
+            continue
+
+        # Delete child comments & status history rows first (Postgres FK constraint)
+        for comment in session.exec(select(Comment).where(Comment.report_id == rid)).all():
+            session.delete(comment)
+        for hist in session.exec(select(StatusHistory).where(StatusHistory.report_id == rid)).all():
+            session.delete(hist)
+
+        session.flush()
+        session.delete(r)
+        affected += 1
+
+    session.commit()
+    log_event(
+        session,
+        user_id=current_admin.id,
+        actor_email=current_admin.email,
+        action="delete",
+        target_type="report",
+        details=f"Bulk deleted {affected} report(s), skipped={len(skipped_ids)}",
+        request=request,
+    )
+    return BulkActionResult(affected=affected, skipped=len(skipped_ids), skipped_ids=skipped_ids)

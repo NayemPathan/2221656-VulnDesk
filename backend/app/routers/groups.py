@@ -105,6 +105,29 @@ def create_group(
     )
     return _build_group_read(session, group)
 
+@router.get("/users-directory", summary="List active users for group member selection")
+def list_group_candidate_users(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    users = session.exec(
+        select(User)
+        .where(
+            col(User.is_deleted).is_(False),
+            col(User.is_banned).is_(False),
+        )
+        .order_by(col(User.name).asc())
+    ).all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role.value if hasattr(u.role, "value") else u.role,
+        }
+        for u in users
+        if u.id != current_user.id
+    ]
 
 @router.get("/{group_id}", response_model=GroupRead)
 def get_group(
