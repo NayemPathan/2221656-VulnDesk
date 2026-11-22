@@ -23,7 +23,7 @@ class GroupMemberUpsert(BaseModel):
 class GroupMemberRead(BaseModel):
     user_id: int
     email: str
-    full_name: str
+    name: str
     can_create: bool
     can_edit: bool
     can_assign: bool

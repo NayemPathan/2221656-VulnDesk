@@ -13,8 +13,8 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ReportDetailPage } from "./pages/ReportDetailPage";
 import { ReportFormPage } from "./pages/ReportFormPage";
 import { ReportListPage } from "./pages/ReportListPage";
+import GroupsPage from "./pages/GroupsPage";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
-
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
 }) => {
@@ -97,6 +97,7 @@ export const App: React.FC = () => {
                     }
                   />
                   <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
                 </Routes>
               </main>
               <footer className="app-footer" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>

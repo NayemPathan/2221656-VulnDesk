@@ -53,6 +53,7 @@ export interface AdminUser {
   name: string;
   email: string;
   role: UserRole;
+  ban_reason?: string | null;
   is_banned: boolean;
   is_deleted: boolean;
   failed_login_attempts: number;
@@ -91,6 +92,7 @@ export interface ReportRead {
   status: ReportStatus;
   rejection_reason: string | null;
   reporter_id: number;
+  group_id?: number | null;
   duplicate_of_id: number | null;
   first_responder_id: number | null;
   first_response_at: string | null;
@@ -114,6 +116,7 @@ export interface ReportCreatePayload {
   component: string;
   steps_to_reproduce: string;
   proposed_severity: Severity;
+  group_id?: number | null;
 }
 
 export interface ReportUpdatePayload {
@@ -158,4 +161,66 @@ export interface CommentItem {
 export interface CommentCreatePayload {
   body: string;
   is_internal: boolean;
+}
+export interface SessionItem {
+  id: number;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface GroupMember {
+  user_id: number;
+  email: string;
+  name: string;
+  can_create: boolean;
+  can_edit: boolean;
+  can_assign: boolean;
+  added_at: string;
+}
+
+export interface GroupItem {
+  id: number;
+  name: string;
+  description: string | null;
+  owner_id: number;
+  owner_email: string;
+  created_at: string;
+  members: GroupMember[];
+}
+
+export interface AdminOverview {
+  total_users: number;
+  banned_users: number;
+  total_reports: number;
+  total_groups: number;
+  new_users_7d: number;
+  new_reports_7d: number;
+}
+
+export interface AuditLogItem {
+  id: number;
+  user_id: number | null;
+  actor_email: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  details: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface SecurityViewData {
+  failed_by_ip: { ip: string; count: number }[];
+  failed_by_account: { email: string; count: number }[];
+  recent_failures: AuditLogItem[];
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
 }

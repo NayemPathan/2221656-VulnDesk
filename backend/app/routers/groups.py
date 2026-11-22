@@ -33,7 +33,7 @@ def _build_group_read(session: Session, group: Group) -> GroupRead:
                 GroupMemberRead(
                     user_id=u.id,
                     email=u.email,
-                    full_name=u.name,
+                    name=u.name,
                     can_create=m.can_create,
                     can_edit=m.can_edit,
                     can_assign=m.can_assign,

@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { RoleBadge } from "./Badges";
 import { useTheme } from "../context/ThemeContext";
@@ -51,6 +51,16 @@ export const Navbar: React.FC = () => {
               >
                 Dashboard
               </Link>
+              <NavLink
+                to="/groups"
+                className={({ isActive }) =>
+                  isActive
+                    ? "nav-btn nav-link active"
+                    : "nav-btn nav-link"
+                }
+              >
+                Groups
+              </NavLink>
               {currentUser.role === "researcher" && (
                 <Link
                   to="/reports/new"
@@ -72,7 +82,7 @@ export const Navbar: React.FC = () => {
                       : "nav-link"
                   }
                 >
-                  Manage Users
+                  Administration
                 </Link>
               )}
             </nav>

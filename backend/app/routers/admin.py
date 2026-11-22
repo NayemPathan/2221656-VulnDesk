@@ -24,6 +24,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.routers.groups import _build_group_read
 from app.schemas.admin import (
     AdminBanUpdate,
     AdminOverview,
@@ -360,6 +361,14 @@ def set_user_ban(
         request=request,
     )
     return AdminUserRead.model_validate(user)
+
+@router.get("/groups", summary="Admin content moderation: list all groups")
+def admin_list_groups(
+    session: Session = Depends(get_session),
+    _current_admin: User = Depends(require_admin_users),
+):
+    groups = session.exec(select(Group).order_by(Group.created_at.desc())).all()
+    return [_build_group_read(session, g) for g in groups]
 
 
 @router.delete(
