@@ -6,6 +6,7 @@ WHAT THIS FILE DOES:
    via `pwdlib` (OWASP-recommended memory-hard hashing algorithm).
 2. `hash_token`: Computes a deterministic SHA-256 hex digest for opaque refresh tokens before
    storing them in the `refresh_token` table.
+3. `generate_refresh_token`: Creates a cryptographically random opaque refresh token.
 
 WHY WE WROTE IT THIS WAY:
 - Passwords use salted Argon2id so brute-force attacks are slow and memory-expensive.
@@ -14,33 +15,58 @@ WHY WE WROTE IT THIS WAY:
   impersonate active sessions.
 =====================================================================
 """
-
 import hashlib
+import hmac
 import secrets
+from datetime import UTC, datetime, timedelta
 
+import jwt
 from pwdlib import PasswordHash
 
-# Argon2id is required by the authentication schema and dependency manifests.
-_password_hasher = PasswordHash.recommended()
+from app.config import settings
+
+password_hash = PasswordHash.recommended()
 
 
-def hash_password(plain_password: str) -> str:
-    """Hash a plaintext password using Argon2id with a unique random salt."""
-    return _password_hasher.hash(plain_password)
+def _apply_pepper(password: str) -> str:
+    return hmac.new(
+        settings.PASSWORD_PEPPER.encode("utf-8"),
+        password.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
-def verify_password(plain_password: str, password_hash: str | None) -> bool:
-    """Verify a plaintext password against a stored Argon2id hash."""
-    if not password_hash:
+def hash_password(password: str) -> str:
+    return password_hash.hash(_apply_pepper(password))
+
+
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
+    if not hashed_password:
         return False
-    return _password_hasher.verify(plain_password, password_hash)
-
-
-def generate_refresh_token() -> str:
-    """Generate a cryptographically secure 256-bit URL-safe opaque refresh token."""
-    return secrets.token_urlsafe(32)
+    if password_hash.verify(_apply_pepper(plain_password), hashed_password):
+        return True
+    # Optional backwards-compatible check for pre-pepper seeded hashes
+    return password_hash.verify(plain_password, hashed_password)
 
 
 def hash_token(raw_token: str) -> str:
-    """Return the SHA-256 hex digest (64 chars) of an opaque refresh token."""
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def create_access_token(user_id: int, role: str) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "role": role,
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
+    }
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )

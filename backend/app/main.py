@@ -25,8 +25,8 @@ logger = logging.getLogger("vulndesk.http")
 def create_app() -> FastAPI:
     """Construct and configure the FastAPI application instance."""
     app = FastAPI(
-        title=settings.project_name,
-        version=settings.version,
+        title="VulnDesk",
+        version="2.0.0",
         description=(
             "VulnDesk: A Vulnerability Report Intake, Triage and Access-Controlled Tracking System."
         ),
