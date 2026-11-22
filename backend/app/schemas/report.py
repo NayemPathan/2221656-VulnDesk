@@ -69,6 +69,8 @@ class ReportCreate(BaseModel):
         description="Researcher's proposed severity: low, medium, high, or critical.",
         examples=[Severity.HIGH],
     )
+    
+    group_id: int | None = None
 
     @field_validator("title", "description", "component", "steps_to_reproduce", mode="before")
     @classmethod
@@ -121,6 +123,7 @@ class ReportRead(BaseModel):
     first_response_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    group_id: int | None = None
 
     @computed_field
     @property

@@ -124,6 +124,19 @@ pre {
   gap: 0.5rem;
 }
 
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.nav-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
 .nav-link {
   color: #e2e8f0;
   background-color: rgba(255, 255, 255, 0.08);
@@ -597,6 +610,24 @@ pre {
 .detail-title { margin: 0; font-size: 1.45rem; letter-spacing: -0.02em; }
 .detail-meta { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--text-muted); }
 .owner-actions { display: flex; align-items: center; gap: 0.6rem; }
+.bulk-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+.bulk-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
 
 .lock-notice {
   font-size: 0.82rem;
@@ -813,4 +844,253 @@ pre {
   border-radius: 4px;
   background: var(--bg-page);
   border: 1px solid var(--border-color);
+}
+/* ---- Unified Dashboard-Style Page Hero ---- */
+.page-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.25rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(14, 165, 233, 0.06));
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.page-hero-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: #3b82f6;
+  margin-bottom: 0.45rem;
+}
+
+.page-hero h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.25;
+}
+
+.page-hero p {
+  margin: 0.3rem 0 0;
+  opacity: 0.8;
+  font-size: 0.92rem;
+}
+
+/* ---- Segmented Tab Bar (Admin Console) ---- */
+.tab-bar {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.35rem;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  margin-bottom: 1.25rem;
+}
+
+.tab-btn {
+  padding: 0.5rem 0.95rem;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.tab-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.tab-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* ---- Unified Bulk Moderation Bar (Users & Reports) ---- */
+.bulk-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.bulk-bar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---- Elevated Data Tables & Permission Pills ---- */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  padding: 0.75rem 0.9rem;
+  background: rgba(148, 163, 184, 0.08);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.data-table td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.perm-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.perm-pill.on {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.perm-pill.off {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---- Reconstructed Groups Workspace ---- */
+.groups-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .groups-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.group-item-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.55rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.group-item-btn:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.group-item-btn.active {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.14);
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 0.65rem;
+  margin: 0.75rem 0;
+}
+
+.perm-toggle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(148, 163, 184, 0.06);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: all 0.15s ease;
+}
+
+.perm-toggle-card.selected {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.perm-toggle-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.perm-toggle-desc {
+  font-size: 0.76rem;
+  opacity: 0.75;
+  line-height: 1.3;
+}
+
+.perm-pill-btn {
+  border: none;
+  cursor: pointer;
+  padding: 0.24rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.perm-pill-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
 }

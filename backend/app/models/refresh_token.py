@@ -30,3 +30,6 @@ class RefreshToken(SQLModel, table=True):
     expires_at: datetime = Field(nullable=False)
     revoked_at: datetime | None = Field(default=None, nullable=True)
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
+    ip_address: str | None = Field(default=None, max_length=64)
+    user_agent: str | None = Field(default=None, max_length=512)
+

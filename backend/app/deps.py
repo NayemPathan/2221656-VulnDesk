@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 from app.config import settings
 from app.database import get_session
 from app.models import User, UserRole
+from app.models.group import Group, GroupMember
 from app.services.auth_service import decode_access_token
 
 # Fine-grained RBAC permission matrix (Beta Milestone M5-A)
@@ -120,3 +121,41 @@ def require_scopes(*required_scopes: str) -> Callable[..., User]:
         return current_user
 
     return _scope_dependency
+
+def check_group_permission(
+    session: Session,
+    group_id: int,
+    user: User,
+    permission: str,  # "read" | "create" | "edit" | "assign" | "owner"
+) -> Group:
+    group = session.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if group.owner_id == user.id:
+        return group
+
+    if permission == "owner":
+        raise HTTPException(status_code=403, detail="Only the group owner can perform this action")
+
+    if user.role == "admin" and permission == "read":
+        return group
+
+    member = session.exec(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user.id,
+        )
+    ).first()
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not a member of this group")
+
+    perm_map = {
+        "read": True,
+        "create": member.can_create,
+        "edit": member.can_edit,
+        "assign": member.can_assign,
+    }
+    if not perm_map.get(permission, False):
+        raise HTTPException(status_code=403, detail=f"Missing group permission: {permission}")
+    return group

@@ -103,3 +103,12 @@ class ResetPasswordRequest(BaseModel):
 
     token: str = Field(..., min_length=10)
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class SessionRead(BaseModel):
+    id: int
+    ip_address: str | None = None
+    user_agent: str | None = None
+    created_at: datetime
+    expires_at: datetime
+    is_current: bool = False

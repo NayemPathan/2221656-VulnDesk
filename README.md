@@ -70,3 +70,26 @@ Every push to `main` redeploys automatically. Or deploy from your machine with `
 - **`Request failed: 500` in the app:** the backend isn't running.
 - **App at localhost:8000 shows an old version:** delete `frontend/dist`.
 - **Vercel build fails:** check **Build Logs** in the Vercel dashboard, and make sure `npm run build` works in `frontend/`.
+
+## Live Deployment & Demo Accounts (CSE 309 Final)
+
+- **Frontend (Vercel):** https://2221656-vulndesk.vercel.app
+- **Backend API Base:** https://2221656-vulndesk.vercel.app/api/v1
+- **Swagger / OpenAPI Docs:** https://2221656-vulndesk.vercel.app/api/v1/docs
+
+### Seeded Test Accounts (Passwords in PDF Appendix & Submission Form)
+| Account Email | Role | Status / Purpose |
+| :--- | :--- | :--- |
+| `admin@vulndesk.local` | `admin` | Primary Administrator (full governance, audit log, security view) |
+| `tutor@vulndesk.local` | `admin` | Secondary Admin / Instructor Evaluator account |
+| `alice@vulndesk.local` | `researcher` | Standard User — Owner of shared group *Web Security Triage Team* |
+| `bob@vulndesk.local` | `researcher` | Standard User — Group member (`can_create=true` only) |
+| `charlie@vulndesk.local` | `analyst` | Triage Analyst — Group member (`can_edit=true`, `can_assign=true`) |
+| `mallory@vulndesk.local` | `researcher` | Banned User (for testing immediate `403` rejection) |
+
+### Seeded Shared Group (Mixed Permissions)
+- **Group Name:** `Web Security Triage Team`
+- **Owner:** `alice@vulndesk.local` (can rename, delete, and manage members)
+- **Members:**
+  - `bob@vulndesk.local` → `Create: Yes`, `Edit: No`, `Assign: No`
+  - `charlie@vulndesk.local` → `Create: No`, `Edit: Yes`, `Assign: Yes`

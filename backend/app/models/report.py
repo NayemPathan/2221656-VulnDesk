@@ -22,8 +22,9 @@ WHY WE WROTE IT THIS WAY (SRS Section 4, 5, 7 & TDD Section 4):
 =====================================================================
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from sqlalchemy import Column, ForeignKey, Integer
 from sqlmodel import Field, SQLModel
 
 from app.models.enums import ReportStatus
@@ -31,7 +32,7 @@ from app.models.enums import ReportStatus
 
 def utc_now() -> datetime:
     """Return current UTC timestamp."""
-    return datetime.now(timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 class Report(SQLModel, table=True):
@@ -71,3 +72,11 @@ class Report(SQLModel, table=True):
     # Audit timestamps
     created_at: datetime = Field(default_factory=utc_now, nullable=False)
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)
+    
+    # group id
+    group_id: int | None = Field(
+    default=None,
+    sa_column=Column(Integer, ForeignKey("group.id", ondelete="SET NULL"), nullable=True, index=True),
+    )
+
+

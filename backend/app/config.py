@@ -49,6 +49,7 @@ class Settings:
     project_name: str = "VulnDesk API"
     version: str = "0.2.0"
     api_v1_prefix: str = "/api/v1"
+    PASSWORD_PEPPER: str = "dev-pepper-change-in-production"
 
     database_url: str = field(
         default_factory=lambda: _normalize_database_url(os.getenv("DATABASE_URL"))

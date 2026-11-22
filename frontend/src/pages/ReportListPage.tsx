@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { SeverityBadge, StatusBadge } from "../components/Badges";
 import { useAuth } from "../context/AuthContext";
@@ -26,6 +26,15 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
 export const ReportListPage: React.FC = () => {
   const { currentUser } = useAuth();
   const {showToast, confirmAction} = useToast();
+  const [searchParams] = useSearchParams();
+  const groupIdParam = searchParams.get("group_id");
+  const parsedGroupId = groupIdParam ? Number(groupIdParam) : undefined;
+  const groupId =
+    parsedGroupId !== undefined &&
+    Number.isSafeInteger(parsedGroupId) &&
+    parsedGroupId > 0
+      ? parsedGroupId
+      : undefined;
 
   const [reports, setReports] = useState<ReportRead[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -54,6 +63,7 @@ export const ReportListPage: React.FC = () => {
         status: statusFilter,
         severity: severityFilter,
         component: componentFilter,
+        group_id: groupId,
         page,
         page_size: pageSize,
       });
@@ -75,6 +85,7 @@ export const ReportListPage: React.FC = () => {
     statusFilter,
     severityFilter,
     componentFilter,
+    groupId,
     page,
     pageSize,
   ]);
@@ -176,7 +187,7 @@ const handleExportCsv = () => {
 
   return (
     <div className="page-container">
-      <div className="page-header">
+      <div className="page-hero">
         <div>
           <h1 className="page-title">
             {currentUser.role === "researcher"
@@ -374,6 +385,11 @@ const handleExportCsv = () => {
                     >
                       #{report.id} — {report.title}
                     </Link>
+                    {report.group_id != null && (
+                      <span className="perm-pill on" style={{ marginLeft: "0.5rem" }}>
+                        Group #{report.group_id}
+                      </span>
+                    )}
                     {report.is_overdue && (
                       <span className="overdue-badge">⏰ OVERDUE SLA</span>
                     )}

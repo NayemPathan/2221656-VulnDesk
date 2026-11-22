@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api, ApiError } from "../api/client";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { api, ApiError, listGroups } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import { Severity } from "../types";
+import { GroupItem, Severity } from "../types";
 
 const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
   { value: "low", label: "Low (10-day SLA)" },
@@ -14,16 +14,62 @@ const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
 export const ReportFormPage: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedGroupId = searchParams.get("group_id");
 
   const [title, setTitle] = useState<string>("");
   const [component, setComponent] = useState<string>("");
   const [proposedSeverity, setProposedSeverity] = useState<Severity>("high");
   const [description, setDescription] = useState<string>("");
   const [stepsToReproduce, setStepsToReproduce] = useState<string>("");
+  const [groups, setGroups] = useState<GroupItem[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [groupsLoading, setGroupsLoading] = useState<boolean>(true);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!currentUser) {
+      setGroupsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    const loadGroups = async () => {
+      setGroupsLoading(true);
+      setGroupsError(null);
+      try {
+        const availableGroups = await listGroups();
+        if (!active) return;
+
+        setGroups(availableGroups);
+        const requestedGroup = availableGroups.find(
+          (group) => String(group.id) === requestedGroupId
+        );
+        setSelectedGroupId(requestedGroup ? String(requestedGroup.id) : "");
+      } catch (err) {
+        if (!active) return;
+        setGroups([]);
+        setSelectedGroupId("");
+        setGroupsError(
+          err instanceof ApiError ? err.message : "Failed to load shared groups."
+        );
+      } finally {
+        if (active) setGroupsLoading(false);
+      }
+    };
+
+    void loadGroups();
+    return () => {
+      active = false;
+    };
+  }, [currentUser, requestedGroupId]);
 
   if (!currentUser) return null;
 
@@ -40,6 +86,7 @@ export const ReportFormPage: React.FC = () => {
         proposed_severity: proposedSeverity,
         description: description.trim(),
         steps_to_reproduce: stepsToReproduce.trim(),
+        ...(selectedGroupId ? { group_id: Number(selectedGroupId) } : {}),
       });
       navigate(`/reports/${created.id}`);
     } catch (err) {
@@ -168,6 +215,35 @@ export const ReportFormPage: React.FC = () => {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="report-group">Shared Group (optional)</label>
+            <select
+              id="report-group"
+              className="form-select"
+              value={selectedGroupId}
+              disabled={groupsLoading || groups.length === 0}
+              onChange={(e) => setSelectedGroupId(e.target.value)}
+            >
+              <option value="">
+                {groupsLoading
+                  ? "Loading groups..."
+                  : groups.length > 0
+                    ? "No group"
+                    : "No shared groups available"}
+              </option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            {groupsError && (
+              <span className="field-hint" role="alert">
+                {groupsError}
+              </span>
+            )}
           </div>
 
           <div className="form-group">

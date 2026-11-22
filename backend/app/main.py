@@ -25,8 +25,8 @@ logger = logging.getLogger("vulndesk.http")
 def create_app() -> FastAPI:
     """Construct and configure the FastAPI application instance."""
     app = FastAPI(
-        title=settings.project_name,
-        version=settings.version,
+        title="VulnDesk",
+        version="2.0.0",
         description=(
             "VulnDesk: A Vulnerability Report Intake, Triage and Access-Controlled Tracking System."
         ),
@@ -92,6 +92,7 @@ def create_app() -> FastAPI:
             comments,
             dashboard,
             health,
+            groups,
             reports,
             triage,
         )
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
         app.include_router(triage.router, prefix=settings.api_v1_prefix)
         app.include_router(comments.router, prefix=settings.api_v1_prefix)
         app.include_router(dashboard.router, prefix=settings.api_v1_prefix)
+        app.include_router(groups.router, prefix=settings.api_v1_prefix)
 
         # Also mount under /v1 (hidden from OpenAPI docs) in case a serverless proxy strips /api
         app.include_router(health.router, prefix="/v1", include_in_schema=False)
@@ -115,6 +117,7 @@ def create_app() -> FastAPI:
         app.include_router(triage.router, prefix="/v1", include_in_schema=False)
         app.include_router(comments.router, prefix="/v1", include_in_schema=False)
         app.include_router(dashboard.router, prefix="/v1", include_in_schema=False)
+        app.include_router(groups.router, prefix="/v1", include_in_schema=False)
 
     except (ImportError, SQLAlchemyError) as startup_exc:
         logger.exception("Backend startup failed")

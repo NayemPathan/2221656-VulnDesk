@@ -1,12 +1,20 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, ApiError } from "../api/client";
+import {
+  api,
+  ApiError,
+  listMySessions,
+  revokeMySession,
+} from "../api/client";
 import { RoleBadge } from "../components/Badges";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import { SessionItem } from "../types";
 
 
 export const ProfilePage: React.FC = () => {
   const { currentUser, refreshProfile, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
 
@@ -15,7 +23,30 @@ export const ProfilePage: React.FC = () => {
   const [newPassword, setNewPassword] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [revokingSessionId, setRevokingSessionId] = useState<number | null>(
+    null
+  );
 
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError(null);
+    try {
+      setSessions(await listMySessions());
+    } catch (err) {
+      setSessionsError(
+        err instanceof ApiError ? err.message : "Failed to load active sessions."
+      );
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) void loadSessions();
+  }, [currentUser, loadSessions]);
 
   if (!currentUser) return null;
 
@@ -49,13 +80,36 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleRevokeSession = async (session: SessionItem) => {
+    setRevokingSessionId(session.id);
+    try {
+      await revokeMySession(session.id);
+      if (session.is_current) {
+        showToast("Current session revoked. Signed out.", "info");
+        await logout();
+        navigate("/login");
+        return;
+      }
+      showToast("Session revoked", "success");
+      await loadSessions();
+    } catch (err) {
+      showToast(
+        err instanceof ApiError ? err.message : "Failed to revoke session.",
+        "error"
+      );
+    } finally {
+      setRevokingSessionId(null);
+    }
+  };
+
 
   return (
     <div className="page-container narrow-container">
-      <div className="page-header">
+      <div className="page-hero">
         <div>
-          <h1 className="page-title">Account Profile</h1>
-          <p className="page-subtitle">
+          <span className="page-hero-eyebrow">Account</span>
+          <h1>Account Profile</h1>
+          <p>
             Signed in as <code>{currentUser.name} - {currentUser.role}</code>
           </p>
         </div>
@@ -126,6 +180,64 @@ export const ProfilePage: React.FC = () => {
           </div>
         </form>
       </div>
+
+      <section className="card" style={{ marginTop: "1.5rem" }}>
+        <h3>Active Sessions ({sessions.length})</h3>
+        {sessionsLoading ? (
+          <p className="muted">Loading active sessions...</p>
+        ) : sessionsError ? (
+          <p className="alert alert-danger">{sessionsError}</p>
+        ) : sessions.length === 0 ? (
+          <p className="muted">No active refresh sessions.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>IP Address</th>
+                <th>Browser / Device</th>
+                <th>Created</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessions.map((session) => (
+                <tr key={session.id}>
+                  <td>
+                    #{session.id}{" "}
+                    {session.is_current && (
+                      <span className="perm-pill on">Current</span>
+                    )}
+                  </td>
+                  <td>{session.ip_address || "unknown"}</td>
+                  <td
+                    style={{
+                      maxWidth: 260,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {session.user_agent || "Unknown client"}
+                  </td>
+                  <td>{new Date(session.created_at).toLocaleString()}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      disabled={revokingSessionId === session.id}
+                      onClick={() => handleRevokeSession(session)}
+                    >
+                      {revokingSessionId === session.id
+                        ? "Revoking..."
+                        : "Revoke"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 };
