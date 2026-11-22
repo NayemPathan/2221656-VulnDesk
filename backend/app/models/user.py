@@ -44,3 +44,5 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utc_now, nullable=False)
 
     refresh_tokens: list[RefreshToken] = Relationship(cascade_delete=True)
+    
+    ban_reason: str | None = Field(default=None, max_length=500)
