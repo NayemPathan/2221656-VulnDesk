@@ -12,6 +12,9 @@ import {
   listAdminGroups,
   listAdminReports,
   listAuditLogs,
+  getAdminUserDetail,
+  revokeAllUserSessions,
+  banUserWithReason,
 } from "../api/client";
 import { RoleBadge } from "../components/Badges";
 import { PasswordInput } from "../components/PasswordInput";
@@ -24,6 +27,7 @@ import {
   GroupItem,
   ReportRead,
   SecurityViewData,
+  SessionItem,
   UserRole,
 } from "../types";
 
@@ -39,7 +43,6 @@ export const AdminUsersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-  const [bulkBanReason, setBulkBanReason] = useState("");
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
@@ -73,6 +76,21 @@ export const AdminUsersPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState<UserRole>("analyst");
+  const [detailData, setDetailData] = useState<{
+    user: AdminUser;
+    reports: ReportRead[];
+    groups: GroupItem[];
+    sessions: SessionItem[];
+    recent_activity: AuditLogItem[];
+  } | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [banModal, setBanModal] = useState<{
+    mode: "single" | "bulk";
+    user?: AdminUser;
+    userIds?: number[];
+  } | null>(null);
+  const [banReason, setBanReason] = useState("Policy violation");
 
   const loadUsers = useCallback(async () => {
     try {
@@ -86,6 +104,69 @@ export const AdminUsersPage: React.FC = () => {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setDetailData(null);
+      setBanModal(null);
+    }
+  };
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
+}, []);
+
+const openUserDetail = async (userId: number) => {
+  setDetailLoading(true);
+  try {
+    const data = await getAdminUserDetail(userId);
+    setDetailData(data);
+  } catch (err: any) {
+    showToast(err?.message || "Failed to load user details", "error");
+  } finally {
+    setDetailLoading(false);
+  }
+};
+
+const handleRevokeAllSessions = async (userId: number) => {
+  try {
+    const res = await revokeAllUserSessions(userId);
+    showToast(`Revoked ${res.revoked} active session(s)`, "success");
+    await openUserDetail(userId);
+  } catch (err: any) {
+    showToast(err?.message || "Failed to revoke sessions", "error");
+  }
+};
+
+const handleConfirmBan = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!banModal) return;
+  const reason = banReason.trim() || "Policy violation";
+  try {
+    if (banModal.mode === "single" && banModal.user) {
+      await banUserWithReason(banModal.user.id, true, reason);
+      showToast(`Banned ${banModal.user.email}`, "success");
+    } else if (banModal.mode === "bulk" && banModal.userIds?.length) {
+      const res = await bulkBanUsers(banModal.userIds, reason);
+      showToast(`Banned ${res.affected} user(s) (skipped ${res.skipped})`, "success");
+      setSelectedUserIds([]);
+    }
+    setBanModal(null);
+    await loadUsers();
+  } catch (err: any) {
+    showToast(err?.message || "Failed to ban user(s)", "error");
+  }
+};
+
+const handleUnban = async (userId: number) => {
+  try {
+    await banUserWithReason(userId, false);
+    await loadUsers();
+    showToast("User unbanned.", "success");
+  } catch (err: any) {
+    showToast(err?.message || "Failed to unban user", "error");
+  }
+};
 
   useEffect(() => {
     getAdminOverview()
@@ -169,25 +250,6 @@ export const AdminUsersPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === "security" && !securityView) void loadSecurityView();
   }, [activeTab, loadSecurityView, securityView]);
-
-  const handleBulkBan = async (userIds: number[]) => {
-    if (userIds.length === 0) return;
-    try {
-      const result = await bulkBanUsers(userIds, bulkBanReason.trim());
-      showToast(
-        `Ban completed: ${result.affected} affected, ${result.skipped} skipped.`,
-        "success"
-      );
-      setSelectedUserIds([]);
-      setBulkBanReason("");
-      await loadUsers();
-    } catch (err) {
-      showToast(
-        err instanceof ApiError ? err.message : "Bulk user action failed.",
-        "error"
-      );
-    }
-  };
 
   const handleBulkUnban = async (userIds: number[]) => {
     if (userIds.length === 0) return;
@@ -305,6 +367,8 @@ export const AdminUsersPage: React.FC = () => {
   const eligibleToUnbanIds = selectedUserObjects
     .filter((u) => u.is_banned && u.role !== "admin" && u.id !== currentUser?.id)
     .map((u) => u.id);
+
+  
 
 
   return (
@@ -446,7 +510,10 @@ export const AdminUsersPage: React.FC = () => {
                   type="button"
                   className="btn btn-danger btn-sm"
                   disabled={eligibleToBanIds.length === 0}
-                  onClick={() => void handleBulkBan(eligibleToBanIds)}
+                  onClick={() => {
+                    setBanModal({ mode: "bulk", userIds: eligibleToBanIds });
+                    setBanReason("Bulk moderation action");
+                  }}
                 >
                   Ban Selected ({eligibleToBanIds.length})
                 </button>
@@ -472,14 +539,6 @@ export const AdminUsersPage: React.FC = () => {
                   Export Users CSV
                 </button>
               </div>
-            </div>
-            <div className="filter-grid mb-3">
-              <input
-                className="form-input"
-                placeholder="Reason for bulk ban"
-                value={bulkBanReason}
-                onChange={(e) => setBulkBanReason(e.target.value)}
-              />
             </div>
             <div className="table-wrap">
               <table className="data-table">
@@ -557,38 +616,32 @@ export const AdminUsersPage: React.FC = () => {
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
-                            disabled={isSelf}
-                            onClick={async () => {
-                              const prevBanned = u.is_banned;
-                              try {
-                                await api.adminSetBan(u.id, !prevBanned);
-                                await loadUsers();
-                                showToast(
-                                  prevBanned
-                                    ? `Unbanned ${u.email}`
-                                    : `Banned ${u.email}`,
-                                  "info",
-                                  async () => {
-                                    await api.adminSetBan(u.id, prevBanned);
-                                    await loadUsers();
-                                    showToast(
-                                      `Reverted ban status for ${u.email}`,
-                                      "success"
-                                    );
-                                  }
-                                );
-                              } catch (err) {
-                                showToast(
-                                  err instanceof ApiError
-                                    ? err.message
-                                    : "Failed to update ban status.",
-                                  "error"
-                                );
-                              }
-                            }}
+                            onClick={() => openUserDetail(u.id)}
                           >
-                            {u.is_banned ? "Unban" : "Ban"}
+                            Details
                           </button>
+                          {!u.is_banned ? (
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              disabled={u.role === "admin" || u.id === currentUser?.id}
+                              onClick={() => {
+                                setBanModal({ mode: "single", user: u });
+                                setBanReason("Policy violation");
+                              }}
+                            >
+                              Ban
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              disabled={u.role === "admin" || u.id === currentUser?.id}
+                              onClick={() => void handleUnban(u.id)}
+                            >
+                              Unban
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn btn-danger btn-sm"
@@ -1111,6 +1164,130 @@ export const AdminUsersPage: React.FC = () => {
             <p className="muted">Security data is unavailable.</p>
           )}
         </section>
+      )}
+
+      {/* ---- Ban Reason Dialog (S13) ---- */}
+      {banModal && (
+        <div className="modal-backdrop" onClick={() => setBanModal(null)}>
+          <div className="card modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460, width: "92%" }}>
+            <h3 style={{ marginTop: 0 }}>
+              {banModal.mode === "single" && banModal.user
+                ? `Ban User: ${banModal.user.name}`
+                : `Bulk Ban ${banModal.userIds?.length ?? 0} Selected User(s)`}
+            </h3>
+            <p className="muted">
+              {banModal.mode === "single" && banModal.user
+                ? <>Banning <strong>{banModal.user.email}</strong> immediately revokes all active sessions and rejects their next request.</>
+                : <>Banning the selected users immediately revokes their active sessions and rejects their next requests.</>}
+            </p>
+            <form onSubmit={handleConfirmBan}>
+              <label style={{ display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>
+                Ban Reason
+              </label>
+              <input
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="Enter reason for banning..."
+                required
+                style={{ width: "100%", marginBottom: "1rem" }}
+                autoFocus
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setBanModal(null)}>
+                  Cancel (Esc)
+                </button>
+                <button type="submit" className="btn btn-danger">
+                  Confirm Ban
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---- User Detail Modal (S12) ---- */}
+      {(detailLoading || detailData) && (
+        <div className="modal-backdrop" onClick={() => setDetailData(null)}>
+          <div
+            className="card modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 780, width: "95%", maxHeight: "85vh", overflowY: "auto" }}
+          >
+            {detailLoading || !detailData ? (
+              <p>Loading user details...</p>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>{detailData.user.name}</h2>
+                    <p className="muted" style={{ margin: "0.2rem 0 0" }}>
+                      {detailData.user.email} • Role: <strong>{detailData.user.role}</strong> •{" "}
+                      {detailData.user.is_banned ? `Banned (${detailData.user.ban_reason || "No reason"})` : "Active"}
+                    </p>
+                  </div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setDetailData(null)}>
+                    Close (Esc)
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", margin: "1rem 0" }}>
+                  <div className="card"><strong>Reports:</strong> {detailData.reports.length}</div>
+                  <div className="card"><strong>Groups:</strong> {detailData.groups.length}</div>
+                  <div className="card"><strong>Active Sessions:</strong> {detailData.sessions.length}</div>
+                  <div className="card"><strong>Recent Events:</strong> {detailData.recent_activity.length}</div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem" }}>
+                  <h4 style={{ margin: 0 }}>Active Sessions ({detailData.sessions.length})</h4>
+                  {detailData.sessions.length > 0 && (
+                    <button className="btn btn-danger btn-sm" onClick={() => handleRevokeAllSessions(detailData.user.id)}>
+                      Revoke All Sessions
+                    </button>
+                  )}
+                </div>
+                {detailData.sessions.length === 0 ? (
+                  <p className="muted">No active sessions.</p>
+                ) : (
+                  <ul style={{ paddingLeft: "1.2rem" }}>
+                    {detailData.sessions.map((s) => (
+                      <li key={s.id}>
+                        Session #{s.id} — IP: {s.ip_address || "unknown"} — Created: {new Date(s.created_at).toLocaleString()}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <h4 style={{ marginBottom: "0.4rem" }}>Recent Activity ({detailData.recent_activity.length})</h4>
+                {detailData.recent_activity.length === 0 ? (
+                  <p className="muted">No recent audit events for this user.</p>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Action</th>
+                          <th>Details</th>
+                          <th>IP</th>
+                          <th>Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailData.recent_activity.map((a) => (
+                          <tr key={a.id}>
+                            <td><strong>{a.action}</strong></td>
+                            <td>{a.details || "—"}</td>
+                            <td>{a.ip_address || "—"}</td>
+                            <td>{new Date(a.created_at).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
